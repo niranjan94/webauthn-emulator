@@ -12,28 +12,30 @@ WebAuthn プロトコルの主要な機能を模倣するクラスです。
 
 #### 主要メソッド
 
-1. `getJSON(origin: string, optionsJSON: PublicKeyCredentialRequestOptionsJSON): AuthenticationResponseJSON`
+**注意:** すべてのメソッドは非同期で Promise を返します。これらのメソッドを呼び出す際は、必ず `await` または `.then()` を使用してください。
 
-   - 認証リクエストを処理し、JSON 形式で応答を返します。
+1. `async getJSON(origin: string, optionsJSON: PublicKeyCredentialRequestOptionsJSON): Promise<AuthenticationResponseJSON>`
 
-2. `createJSON(origin: string, optionsJSON: PublicKeyCredentialCreationOptionsJSON): RegistrationResponseJSON`
+   - 認証リクエストを処理し、JSON 形式で応答を非同期で返します。
 
-   - 資格情報の作成リクエストを処理し、JSON 形式で応答を返します。
+2. `async createJSON(origin: string, optionsJSON: PublicKeyCredentialCreationOptionsJSON): Promise<RegistrationResponseJSON>`
 
-3. `getAuthenticatorInfo(): AuthenticatorInfo`
+   - 資格情報の作成リクエストを処理し、JSON 形式で応答を非同期で返します。
 
-   - オーセンティケータの情報を取得します。
+3. `async getAuthenticatorInfo(): Promise<AuthenticatorInfo>`
 
-4. `signalUnknownCredential(options: UnknownCredentialOptionsJSON): void`
+   - オーセンティケータの情報を非同期で取得します。
 
-   - 不明な資格情報を通知し、認証器から削除します。
+4. `async signalUnknownCredential(options: UnknownCredentialOptionsJSON): Promise<void>`
 
-5. `get(origin: string, options: CredentialRequestOptions): RequestPublicKeyCredential`
+   - 不明な資格情報を通知し、認証器から非同期で削除します。
 
-   - 認証プロセスをシミュレートします。
+5. `async get(origin: string, options: CredentialRequestOptions): Promise<RequestPublicKeyCredential>`
 
-6. `create(origin: string, options: CredentialCreationOptions): CreatePublicKeyCredential`
-   - 新しい資格情報の作成プロセスをシミュレートします。
+   - 認証プロセスを非同期でシミュレートします。
+
+6. `async create(origin: string, options: CredentialCreationOptions): Promise<CreatePublicKeyCredential>`
+   - 新しい資格情報の作成プロセスを非同期でシミュレートします。
 
 ## 主要な機能
 
@@ -84,13 +86,13 @@ const emulator = new WebAuthnEmulator();
 const creationOptions = {
   /* ... */
 };
-const credential = emulator.createJSON(origin, creationOptions);
+const credential = await emulator.createJSON(origin, creationOptions);
 
 // 認証
 const requestOptions = {
   /* ... */
 };
-const assertion = emulator.getJSON(origin, requestOptions);
+const assertion = await emulator.getJSON(origin, requestOptions);
 ```
 
 このドキュメントは、提供されたコードの主要な機能と使用方法の概要を説明しています。実際の実装では、より詳細な設定やエラーハンドリングが必要になる場合があります。

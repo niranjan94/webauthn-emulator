@@ -17,7 +17,7 @@ import {
 describe("WebAuthn Model Test", () => {
   const webauthnEmulator = new WebAuthnEmulator();
   test("Attestation Object pack and unpack", async () => {
-    const createResponse = webauthnEmulator.create("https://test-rp.org", {
+    const createResponse = await webauthnEmulator.create("https://test-rp.org", {
       publicKey: {
         rp: { name: "test-rp.org", id: "test-rp.org" },
         user: { id: EncodeUtils.strToUint8Array("test-user"), name: "user", displayName: "user" },

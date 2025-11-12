@@ -41,7 +41,7 @@ describe("WebAuthn JSON Model Test", () => {
 
   test("Create Response JSON Serialize Deserialize test", async () => {
     const emulator = new WebAuthnEmulator();
-    const response = emulator.create("https://test-rp.org", { publicKey: creationOption });
+    const response = await await emulator.create("https://test-rp.org", { publicKey: creationOption });
 
     const json = toRegistrationResponseJSON(response);
     const model = parseRegistrationResponseFromJSON(json);
@@ -58,8 +58,8 @@ describe("WebAuthn JSON Model Test", () => {
 
   test("Get Response JSON Serialize Deserialize test", async () => {
     const emulator = new WebAuthnEmulator();
-    emulator.create("https://test-rp.org", { publicKey: creationOption });
-    const response = emulator.get("https://test-rp.org", {
+    await emulator.create("https://test-rp.org", { publicKey: creationOption });
+    const response = await emulator.get("https://test-rp.org", {
       publicKey: { ...requestOption, allowCredentials: undefined },
     });
     const json = toAuthenticationResponseJSON(response);
@@ -71,7 +71,7 @@ describe("WebAuthn JSON Model Test", () => {
   test("Create Response JSON optional test", async () => {
     const emulator = new WebAuthnEmulator();
     const customOption = { publicKey: { ...creationOption, excludeCredentials: undefined } };
-    const json = emulator.createJSON("https://test-rp.org", toCreationOptionsJSON(customOption.publicKey));
+    const json = await emulator.createJSON("https://test-rp.org", toCreationOptionsJSON(customOption.publicKey));
     const customJson: RegistrationResponseJSON = {
       ...json,
       authenticatorAttachment: "platform",
@@ -88,7 +88,7 @@ describe("WebAuthn JSON Model Test", () => {
   test("Get Response JSON optional test", async () => {
     const emulator = new WebAuthnEmulator();
     const customOption = { publicKey: { ...requestOption, allowCredentials: undefined } };
-    const json = emulator.getJSON("https://test-rp.org", toRequestOptionsJSON(customOption.publicKey));
+    const json = await emulator.getJSON("https://test-rp.org", toRequestOptionsJSON(customOption.publicKey));
     const customJson: AuthenticationResponseJSON = {
       ...json,
       authenticatorAttachment: "platform",

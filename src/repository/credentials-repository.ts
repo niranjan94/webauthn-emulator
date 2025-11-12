@@ -36,9 +36,19 @@ export type PasskeyDiscoverableCredentialJSON = {
  * Passkey credentials repository
  */
 export interface PasskeysCredentialsRepository {
-  saveCredential(credential: PasskeyDiscoverableCredential): void;
-  deleteCredential(credential: PasskeyDiscoverableCredential): void;
-  loadCredentials(): PasskeyDiscoverableCredential[];
+  saveCredential(credential: PasskeyDiscoverableCredential): Promise<void>;
+  deleteCredential(credential: PasskeyDiscoverableCredential): Promise<void>;
+  loadCredentials(): Promise<PasskeyDiscoverableCredential[]>;
+
+  /**
+   * Execute a function within a transaction.
+   * All operations within the transaction function are guaranteed to be atomic.
+   * This is critical for operations like sign count updates that must not have race conditions.
+   *
+   * @param fn Function to execute within the transaction context
+   * @returns Promise that resolves with the function's return value
+   */
+  transaction<T>(fn: (repo: PasskeysCredentialsRepository) => Promise<T>): Promise<T>;
 }
 
 /**

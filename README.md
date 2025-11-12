@@ -21,21 +21,23 @@ npm install nid-webauthn-emulator
 
 Basic usage involves creating a `WebAuthnEmulator` class and using the `create` and `get` methods to emulate `navigator.credentials.create` and `navigator.credentials.get` from the WebAuthn API.
 
+**Note:** All WebAuthn emulator methods are asynchronous and return Promises. Make sure to use `await` or `.then()` when calling these methods.
+
 ```TypeScript
 import WebAuthnEmulator from "nid-webauthn-emulator";
 
 const emulator = new WebAuthnEmulator();
 const origin = "https://example.com";
 
-emulator.create(origin, creationOptions);
-emulator.get(origin, requestOptions);
+await emulator.create(origin, creationOptions);
+await emulator.get(origin, requestOptions);
 ```
 
 You can also use the `createJSON` and `getJSON` methods to perform emulation with JSON data based on the WebAuthn API specification.
 
 ```TypeScript
-emulator.createJSON(origin, creationOptionsJSON);
-emulator.getJSON(origin, requestOptionsJSON);
+await emulator.createJSON(origin, creationOptionsJSON);
+await emulator.getJSON(origin, requestOptionsJSON);
 ```
 
 These JSON specifications are defined as standard specification data in the following:
@@ -104,16 +106,16 @@ const webauthnIO = await WebAuthnIO.create();
 const user = webauthnIO.getUser();
 
 // Display Authenticator information
-console.log("Authenticator Information", emulator.getAuthenticatorInfo());
+console.log("Authenticator Information", await emulator.getAuthenticatorInfo());
 
 // Create passkey using WebAuthn API Emulator
 const creationOptions = await webauthnIO.getRegistrationOptions(user);
-const creationCredential = emulator.createJSON(origin, creationOptions);
+const creationCredential = await emulator.createJSON(origin, creationOptions);
 await webauthnIO.getRegistrationVerification(user, creationCredential);
 
 // Verify authentication with webauthn.io
 const requestOptions = await webauthnIO.getAuthenticationOptions();
-const requestCredential = emulator.getJSON(origin, requestOptions);
+const requestCredential = await emulator.getJSON(origin, requestOptions);
 await webauthnIO.getAuthenticationVerification(requestCredential);
 ```
 
@@ -134,7 +136,7 @@ async function startWebAuthnEmulator(page: Page, origin: string, debug = false, 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorCreate,
     async (optionsJSON: PublicKeyCredentialCreationOptionsJSON) => {
-      const response = emulator.createJSON(origin, optionsJSON, relatedOrigins);
+      const response = await emulator.createJSON(origin, optionsJSON, relatedOrigins);
       return response;
     },
   );
@@ -142,7 +144,7 @@ async function startWebAuthnEmulator(page: Page, origin: string, debug = false, 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorGet,
     async (optionsJSON: PublicKeyCredentialRequestOptionsJSON) => {
-      const response = emulator.getJSON(origin, optionsJSON, relatedOrigins);
+      const response = await emulator.getJSON(origin, optionsJSON, relatedOrigins);
       return response;
     },
   );
@@ -150,21 +152,21 @@ async function startWebAuthnEmulator(page: Page, origin: string, debug = false, 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorSignalUnknownCredential,
     async (options: UnknownCredentialOptionsJSON) => {
-      emulator.signalUnknownCredential(options);
+      await emulator.signalUnknownCredential(options);
     },
   );
 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorSignalAllAcceptedCredentials,
     async (options: AllAcceptedCredentialsOptionsJSON) => {
-      emulator.signalAllAcceptedCredentials(options);
+      await emulator.signalAllAcceptedCredentials(options);
     },
   );
 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorSignalCurrentUserDetails,
     async (options: CurrentUserDetailsOptionsJSON) => {
-      emulator.signalCurrentUserDetails(options);
+      await emulator.signalCurrentUserDetails(options);
     },
   );
 }
@@ -209,6 +211,128 @@ await page.evaluate(BrowserInjection.HookWebAuthnApis);
 - Adds the definition of `PublicKeyCredential.signalUnknownCredential` to call `window.webAuthnEmulatorSignalUnknownCredential`
 
 This ensures that the `WebAuthnEmulator` methods defined earlier with `exposeFunction` are executed when `navigator.credentials.get` and `navigator.credentials.create` are called. These processes include serialization and deserialization of data for communication between the test context and Playwright context.
+
+## Custom Credential Storage
+
+By default, the `AuthenticatorEmulator` stores credentials in memory using `PasskeysCredentialsMemoryRepository`. For testing scenarios that require persistent storage or database-backed credential management, you can implement the `PasskeysCredentialsRepository` interface.
+
+### Repository Interface
+
+All repository methods are asynchronous and return Promises, allowing you to use database operations:
+
+```TypeScript
+export interface PasskeysCredentialsRepository {
+  saveCredential(credential: PasskeyDiscoverableCredential): Promise<void>;
+  deleteCredential(credential: PasskeyDiscoverableCredential): Promise<void>;
+  loadCredentials(): Promise<PasskeyDiscoverableCredential[]>;
+
+  /**
+   * Execute operations within a transaction.
+   * All operations within the transaction function are guaranteed to be atomic.
+   * This is critical for sign count updates to prevent race conditions.
+   */
+  transaction<T>(fn: (repo: PasskeysCredentialsRepository) => Promise<T>): Promise<T>;
+}
+```
+
+### Transaction Support
+
+The `transaction` method is essential for atomic operations, particularly for sign counter updates during authentication. The sign counter is a critical security feature in WebAuthn that helps detect cloned credentials. Without atomic updates, concurrent authentication requests could result in race conditions where the sign counter is not properly incremented.
+
+Example of a race condition **without** transactions:
+1. Request A reads signCount = 5
+2. Request B reads signCount = 5 (before A saves)
+3. Request A saves signCount = 6
+4. Request B saves signCount = 6 (❌ should be 7!)
+
+With transactions, the emulator ensures:
+1. Request A: transaction starts → reads 5 → saves 6 → transaction commits
+2. Request B: waits → transaction starts → reads 6 → saves 7 → transaction commits
+
+### Database-Backed Repository Example
+
+Here's an example of implementing a PostgreSQL-backed credential repository:
+
+```TypeScript
+import { PasskeysCredentialsRepository, PasskeyDiscoverableCredential } from "nid-webauthn-emulator";
+import { Pool } from "pg";
+
+class PostgresCredentialsRepository implements PasskeysCredentialsRepository {
+  constructor(private pool: Pool) {}
+
+  async saveCredential(credential: PasskeyDiscoverableCredential): Promise<void> {
+    const serialized = JSON.stringify(credential);
+    const id = this.getCredentialId(credential);
+
+    await this.pool.query(
+      `INSERT INTO credentials (id, data) VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE SET data = $2`,
+      [id, serialized]
+    );
+  }
+
+  async deleteCredential(credential: PasskeyDiscoverableCredential): Promise<void> {
+    const id = this.getCredentialId(credential);
+    await this.pool.query('DELETE FROM credentials WHERE id = $1', [id]);
+  }
+
+  async loadCredentials(): Promise<PasskeyDiscoverableCredential[]> {
+    const result = await this.pool.query('SELECT data FROM credentials');
+    return result.rows.map(row => JSON.parse(row.data));
+  }
+
+  async transaction<T>(fn: (repo: PasskeysCredentialsRepository) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Create a transactional repository using the same client
+      const txRepo = new PostgresTransactionalRepository(client);
+      const result = await fn(txRepo);
+
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private getCredentialId(credential: PasskeyDiscoverableCredential): string {
+    // Generate unique ID from RP ID and user ID
+    return `${credential.publicKeyCredentialSource.rpId.value}:${Buffer.from(credential.user.id).toString('base64')}`;
+  }
+}
+
+// Use custom repository with AuthenticatorEmulator
+const repository = new PostgresCredentialsRepository(pool);
+const authenticator = new AuthenticatorEmulator({
+  credentialsRepository: repository
+});
+const emulator = new WebAuthnEmulator(authenticator);
+```
+
+### Built-in Repository Options
+
+The library provides two built-in repository implementations:
+
+1. **PasskeysCredentialsMemoryRepository** (default): Stores credentials in memory
+2. **PasskeysCredentialsFileRepository**: Stores credentials as JSON files on disk
+
+```TypeScript
+import { AuthenticatorEmulator, PasskeysCredentialsFileRepository } from "nid-webauthn-emulator";
+
+// Use file-based storage
+const repository = new PasskeysCredentialsFileRepository("./credentials");
+const authenticator = new AuthenticatorEmulator({
+  credentialsRepository: repository
+});
+```
+
+Both built-in repositories implement transaction locking using promise-based queuing to ensure atomic operations, even without database-level transaction support.
 
 ## License
 

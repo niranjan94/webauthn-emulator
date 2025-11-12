@@ -12,20 +12,22 @@ CTAP プロトコルに基づいた Authenticator の主要な機能をエミュ
 
 #### 主要メソッド
 
-1. `command(request: CTAPAuthenticatorRequest): CTAPAuthenticatorResponse`
+**注意:** ほとんどのメソッドは非同期で Promise を返します。非同期メソッドを呼び出す際は、必ず `await` または `.then()` を使用してください。
 
-   - CTAP コマンドを受け取り、適切な応答を返します。
+1. `async command(request: CTAPAuthenticatorRequest): Promise<CTAPAuthenticatorResponse>`
+
+   - CTAP コマンドを受け取り、適切な応答を非同期で返します。
 
 2. `authenticatorGetInfo(): AuthenticatorGetInfoResponse`
 
-   - Authenticator の情報を返します。
+   - Authenticator の情報を返します。（同期メソッド）
 
-3. `authenticatorMakeCredential(request: AuthenticatorMakeCredentialRequest): AuthenticatorMakeCredentialResponse`
+3. `async authenticatorMakeCredential(request: AuthenticatorMakeCredentialRequest): Promise<AuthenticatorMakeCredentialResponse>`
 
-   - 新しい資格情報を作成します。
+   - 新しい資格情報を非同期で作成します。
 
-4. `authenticatorGetAssertion(request: AuthenticatorGetAssertionRequest): AuthenticatorGetAssertionResponse`
-   - 既存の資格情報を使用して認証を行います。
+4. `async authenticatorGetAssertion(request: AuthenticatorGetAssertionRequest): Promise<AuthenticatorGetAssertionResponse>`
+   - 既存の資格情報を使用して認証を非同期で行い、サインカウンタをアトミックに更新します。
 
 ## 主要な機能
 
@@ -43,8 +45,9 @@ CTAP プロトコルに基づいた Authenticator の主要な機能をエミュ
 
 ## セキュリティ考慮事項
 
-- 排他リストと許可リストの処理: 資格情報の作成時や認証時に、適切な資格情報のフィルタリングを行います。
-- 署名カウンターの管理: 認証ごとに署名カウンターを増加させ、再生攻撃を防止します。
+- **排他リストと許可リストの処理**: 資格情報の作成時や認証時に、適切な資格情報のフィルタリングを行います。
+- **署名カウンターの管理**: 認証ごとに署名カウンターを増加させ、再生攻撃を防止します。サインカウンタの更新は、同時認証シナリオにおけるレースコンディションを防ぐため、トランザクションを使用してアトミックに実行されます。
+- **トランザクションサポート**: すべての認証情報リポジトリ操作はトランザクションをサポートしており、同時実行される操作が互いに干渉しないことを保証します。これは、クローンされた認証情報を検出するための重要なセキュリティ機能であるサインカウンタの整合性を維持するために不可欠です。
 
 ## エラーハンドリング
 
@@ -68,7 +71,10 @@ CTAP プロトコルに基づいた Authenticator の主要な機能をエミュ
 - 署名カウンターの増分
 - ユーザー検証と存在確認のシミュレーション
 - ユーザーインタラクションのシミュレーション
-- 資格情報の保存方法
+- **資格情報の保存方法**: `PasskeysCredentialsRepository` インターフェースを実装することで、カスタムストレージバックエンド（データベース、Redis など）を使用できます。リポジトリインターフェースには以下が必要です：
+  - すべての CRUD 操作に対する非同期メソッド
+  - アトミックな操作のための `transaction<T>()` メソッド
+  - カスタムリポジトリの実装例については、メイン README を参照してください
 - ステートレスモードの有効化
 
 ## 使用例
@@ -86,7 +92,7 @@ const emulator = new AuthenticatorEmulator({
 const makeCredentialRequest = {
   /* ... */
 };
-const credentialResponse = emulator.command({
+const credentialResponse = await emulator.command({
   command: CTAP_COMMAND.authenticatorMakeCredential,
   request: makeCredentialRequest,
 });
@@ -95,7 +101,7 @@ const credentialResponse = emulator.command({
 const getAssertionRequest = {
   /* ... */
 };
-const assertionResponse = emulator.command({
+const assertionResponse = await emulator.command({
   command: CTAP_COMMAND.authenticatorGetAssertion,
   request: getAssertionRequest,
 });

@@ -20,21 +20,23 @@ npm install nid-webauthn-emulator
 
 基本的な使い方は `WebAuthnEmulator` クラスを作成し、`create` および `get` メソッドを利用することで、WebAuthn API における `navigator.credentials.create` および `navigator.credentials.get` をエミュレーションすることができます。
 
+**注意:** すべての WebAuthn エミュレータのメソッドは非同期で Promise を返します。これらのメソッドを呼び出す際は、必ず `await` または `.then()` を使用してください。
+
 ```TypeScript
 import WebAuthnEmulator from "nid-webauthn-emulator";
 
 const emulator = new WebAuthnEmulator();
 const origin = "https://example.com";
 
-emulator.create(origin, creationOptions);
-emulator.get(origin, requestOptions);
+await emulator.create(origin, creationOptions);
+await emulator.get(origin, requestOptions);
 ```
 
 また、`createJSON` および `getJSON` メソッドを利用することで、WebAuthn API で WebAuthn API 仕様に基づいた JSON データでのエミュレーションを行うこともできます。
 
 ```TypeScript
-emulator.createJSON(origin, creationOptionsJSON);
-emulator.getJSON(origin, requestOptionsJSON);
+await emulator.createJSON(origin, creationOptionsJSON);
+await emulator.getJSON(origin, requestOptionsJSON);
 ```
 
 これらの JSON の仕様は、標準仕様の下記に定義されたデータです。
@@ -103,16 +105,16 @@ const webauthnIO = await WebAuthnIO.create();
 const user = webauthnIO.getUser();
 
 // Authenticator の情報を表示します
-console.log("Authenticator Information", emulator.getAuthenticatorInfo());
+console.log("Authenticator Information", await emulator.getAuthenticatorInfo());
 
 // WebAuthn API Emulator により パスキーを作成します
 const creationOptions = await webauthnIO.getRegistrationOptions(user);
-const creationCredential = emulator.createJSON(origin, creationOptions);
+const creationCredential = await emulator.createJSON(origin, creationOptions);
 await webauthnIO.getRegistrationVerification(user, creationCredential);
 
 // 認証を webauthn.io で検証します
 const requestOptions = await webauthnIO.getAuthenticationOptions();
-const requestCredential = emulator.getJSON(origin, requestOptions);
+const requestCredential = await emulator.getJSON(origin, requestOptions);
 await webauthnIO.getAuthenticationVerification(requestCredential);
 ```
 
@@ -133,7 +135,7 @@ async function startWebAuthnEmulator(page: Page, origin: string, debug = false, 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorCreate,
     async (optionsJSON: PublicKeyCredentialCreationOptionsJSON) => {
-      const response = emulator.createJSON(origin, optionsJSON, relatedOrigins);
+      const response = await emulator.createJSON(origin, optionsJSON, relatedOrigins);
       return response;
     },
   );
@@ -141,7 +143,7 @@ async function startWebAuthnEmulator(page: Page, origin: string, debug = false, 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorGet,
     async (optionsJSON: PublicKeyCredentialRequestOptionsJSON) => {
-      const response = emulator.getJSON(origin, optionsJSON, relatedOrigins);
+      const response = await emulator.getJSON(origin, optionsJSON, relatedOrigins);
       return response;
     },
   );
@@ -149,21 +151,21 @@ async function startWebAuthnEmulator(page: Page, origin: string, debug = false, 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorSignalUnknownCredential,
     async (options: UnknownCredentialOptionsJSON) => {
-      emulator.signalUnknownCredential(options);
+      await emulator.signalUnknownCredential(options);
     },
   );
 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorSignalAllAcceptedCredentials,
     async (options: AllAcceptedCredentialsOptionsJSON) => {
-      emulator.signalAllAcceptedCredentials(options);
+      await emulator.signalAllAcceptedCredentials(options);
     },
   );
 
   await page.exposeFunction(
     BrowserInjection.WebAuthnEmulatorSignalCurrentUserDetails,
     async (options: CurrentUserDetailsOptionsJSON) => {
-      emulator.signalCurrentUserDetails(options);
+      await emulator.signalCurrentUserDetails(options);
     },
   );
 }
@@ -208,6 +210,128 @@ await page.evaluate(BrowserInjection.HookWebAuthnApis);
 - `PublicKeyCredential.signalUnknownCredential` の定義を追加し、`window.webAuthnEmulatorSignalUnknownCredential` を呼び出す
 
 これにより先ほどの `exposeFunction` で定義した `WebAuthnEmulator` のメソッドが、`navigator.credentials.get` および `navigator.credentials.create` 呼び出し時に実行されるようになります。これらの処理中にはテストコンテキストと Playwright のコンテキスト間の通信のためにデータのシリアライズおよびデシリアライズが行われるため、そのための処理も含まれています。
+
+## カスタム認証情報ストレージ
+
+デフォルトでは、`AuthenticatorEmulator` は `PasskeysCredentialsMemoryRepository` を使用してメモリ内に認証情報を保存します。永続的なストレージやデータベースを使った認証情報管理が必要なテストシナリオでは、`PasskeysCredentialsRepository` インターフェースを実装することができます。
+
+### リポジトリインターフェース
+
+すべてのリポジトリメソッドは非同期で Promise を返すため、データベース操作が可能です：
+
+```TypeScript
+export interface PasskeysCredentialsRepository {
+  saveCredential(credential: PasskeyDiscoverableCredential): Promise<void>;
+  deleteCredential(credential: PasskeyDiscoverableCredential): Promise<void>;
+  loadCredentials(): Promise<PasskeyDiscoverableCredential[]>;
+
+  /**
+   * トランザクション内で操作を実行します。
+   * トランザクション関数内のすべての操作はアトミックに実行されることが保証されます。
+   * これは、レースコンディションを防ぐためにサインカウンタの更新に不可欠です。
+   */
+  transaction<T>(fn: (repo: PasskeysCredentialsRepository) => Promise<T>): Promise<T>;
+}
+```
+
+### トランザクションサポート
+
+`transaction` メソッドは、特に認証時のサインカウンタ更新において、アトミックな操作に不可欠です。サインカウンタは、クローンされた認証情報を検出するための WebAuthn の重要なセキュリティ機能です。アトミックな更新がないと、同時認証リクエストでサインカウンタが正しくインクリメントされないレースコンディションが発生する可能性があります。
+
+トランザクション**なし**のレースコンディションの例：
+1. リクエスト A が signCount = 5 を読む
+2. リクエスト B が signCount = 5 を読む（A が保存する前）
+3. リクエスト A が signCount = 6 を保存
+4. リクエスト B が signCount = 6 を保存（❌ 7 であるべき！）
+
+トランザクション**あり**の場合、エミュレータは以下を保証します：
+1. リクエスト A: トランザクション開始 → 5 を読む → 6 を保存 → コミット
+2. リクエスト B: 待機 → トランザクション開始 → 6 を読む → 7 を保存 → コミット
+
+### データベース対応リポジトリの例
+
+PostgreSQL を使った認証情報リポジトリの実装例：
+
+```TypeScript
+import { PasskeysCredentialsRepository, PasskeyDiscoverableCredential } from "nid-webauthn-emulator";
+import { Pool } from "pg";
+
+class PostgresCredentialsRepository implements PasskeysCredentialsRepository {
+  constructor(private pool: Pool) {}
+
+  async saveCredential(credential: PasskeyDiscoverableCredential): Promise<void> {
+    const serialized = JSON.stringify(credential);
+    const id = this.getCredentialId(credential);
+
+    await this.pool.query(
+      `INSERT INTO credentials (id, data) VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE SET data = $2`,
+      [id, serialized]
+    );
+  }
+
+  async deleteCredential(credential: PasskeyDiscoverableCredential): Promise<void> {
+    const id = this.getCredentialId(credential);
+    await this.pool.query('DELETE FROM credentials WHERE id = $1', [id]);
+  }
+
+  async loadCredentials(): Promise<PasskeyDiscoverableCredential[]> {
+    const result = await this.pool.query('SELECT data FROM credentials');
+    return result.rows.map(row => JSON.parse(row.data));
+  }
+
+  async transaction<T>(fn: (repo: PasskeysCredentialsRepository) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // 同じクライアントを使用するトランザクショナルリポジトリを作成
+      const txRepo = new PostgresTransactionalRepository(client);
+      const result = await fn(txRepo);
+
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private getCredentialId(credential: PasskeyDiscoverableCredential): string {
+    // RP ID とユーザー ID から一意な ID を生成
+    return `${credential.publicKeyCredentialSource.rpId.value}:${Buffer.from(credential.user.id).toString('base64')}`;
+  }
+}
+
+// カスタムリポジトリを AuthenticatorEmulator で使用
+const repository = new PostgresCredentialsRepository(pool);
+const authenticator = new AuthenticatorEmulator({
+  credentialsRepository: repository
+});
+const emulator = new WebAuthnEmulator(authenticator);
+```
+
+### 組み込みリポジトリオプション
+
+ライブラリは2つの組み込みリポジトリ実装を提供します：
+
+1. **PasskeysCredentialsMemoryRepository**（デフォルト）：メモリ内に認証情報を保存
+2. **PasskeysCredentialsFileRepository**：ディスク上に JSON ファイルとして認証情報を保存
+
+```TypeScript
+import { AuthenticatorEmulator, PasskeysCredentialsFileRepository } from "nid-webauthn-emulator";
+
+// ファイルベースのストレージを使用
+const repository = new PasskeysCredentialsFileRepository("./credentials");
+const authenticator = new AuthenticatorEmulator({
+  credentialsRepository: repository
+});
+```
+
+どちらの組み込みリポジトリも、データベースレベルのトランザクションサポートがなくても、Promise ベースのキューイングを使用したトランザクションロックを実装し、アトミックな操作を保証します。
 
 ## ライセンス
 

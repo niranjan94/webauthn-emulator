@@ -12,28 +12,30 @@ A class that mimics the main functionality of the WebAuthn protocol.
 
 #### Key Methods
 
-1. `getJSON(origin: string, optionsJSON: PublicKeyCredentialRequestOptionsJSON): AuthenticationResponseJSON`
+**Note:** All methods are asynchronous and return Promises. Always use `await` or `.then()` when calling these methods.
 
-   - Processes authentication requests and returns responses in JSON format.
+1. `async getJSON(origin: string, optionsJSON: PublicKeyCredentialRequestOptionsJSON): Promise<AuthenticationResponseJSON>`
 
-2. `createJSON(origin: string, optionsJSON: PublicKeyCredentialCreationOptionsJSON): RegistrationResponseJSON`
+   - Processes authentication requests and returns responses in JSON format asynchronously.
 
-   - Processes credential creation requests and returns responses in JSON format.
+2. `async createJSON(origin: string, optionsJSON: PublicKeyCredentialCreationOptionsJSON): Promise<RegistrationResponseJSON>`
 
-3. `getAuthenticatorInfo(): AuthenticatorInfo`
+   - Processes credential creation requests and returns responses in JSON format asynchronously.
 
-   - Retrieves authenticator information.
+3. `async getAuthenticatorInfo(): Promise<AuthenticatorInfo>`
 
-4. `signalUnknownCredential(options: UnknownCredentialOptionsJSON): void`
+   - Retrieves authenticator information asynchronously.
 
-   - Signals unknown credentials and removes them from the authenticator.
+4. `async signalUnknownCredential(options: UnknownCredentialOptionsJSON): Promise<void>`
 
-5. `get(origin: string, options: CredentialRequestOptions): RequestPublicKeyCredential`
+   - Signals unknown credentials and removes them from the authenticator asynchronously.
 
-   - Simulates the authentication process.
+5. `async get(origin: string, options: CredentialRequestOptions): Promise<RequestPublicKeyCredential>`
 
-6. `create(origin: string, options: CredentialCreationOptions): CreatePublicKeyCredential`
-   - Simulates the process of creating new credentials.
+   - Simulates the authentication process asynchronously.
+
+6. `async create(origin: string, options: CredentialCreationOptions): Promise<CreatePublicKeyCredential>`
+   - Simulates the process of creating new credentials asynchronously.
 
 ## Key Features
 
@@ -84,13 +86,13 @@ const emulator = new WebAuthnEmulator();
 const creationOptions = {
   /* ... */
 };
-const credential = emulator.createJSON(origin, creationOptions);
+const credential = await emulator.createJSON(origin, creationOptions);
 
 // Authentication
 const requestOptions = {
   /* ... */
 };
-const assertion = emulator.getJSON(origin, requestOptions);
+const assertion = await emulator.getJSON(origin, requestOptions);
 ```
 
 This document provides an overview of the main functionality and usage of the provided code. Actual implementations may require more detailed configuration and error handling.

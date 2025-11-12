@@ -84,9 +84,9 @@ export class WebAuthnEmulator {
     return new DOMException(error.message, name);
   }
 
-  private handleAuthenticatorCall<T>(fn: () => T): T {
+  private async handleAuthenticatorCall<T>(fn: () => Promise<T>): Promise<T> {
     try {
-      return fn();
+      return await fn();
     } catch (error) {
       if (error instanceof AuthenticationEmulatorError) {
         throw this.mapAuthenticatorErrorToDOMException(error);
@@ -95,29 +95,29 @@ export class WebAuthnEmulator {
     }
   }
 
-  public getJSON(
+  public async getJSON(
     origin: string,
     optionsJSON: PublicKeyCredentialRequestOptionsJSON,
     relatedOrigins: string[] = [],
-  ): AuthenticationResponseJSON {
+  ): Promise<AuthenticationResponseJSON> {
     const options = parseRequestOptionsFromJSON(optionsJSON);
-    const response = this.get(origin, { publicKey: options }, relatedOrigins);
+    const response = await this.get(origin, { publicKey: options }, relatedOrigins);
     return response.toJSON();
   }
 
-  public createJSON(
+  public async createJSON(
     origin: string,
     optionsJSON: PublicKeyCredentialCreationOptionsJSON,
     relatedOrigins: string[] = [],
-  ): RegistrationResponseJSON {
+  ): Promise<RegistrationResponseJSON> {
     const options = parseCreationOptionsFromJSON(optionsJSON);
-    const response = this.create(origin, { publicKey: options }, relatedOrigins);
+    const response = await this.create(origin, { publicKey: options }, relatedOrigins);
     return response.toJSON();
   }
 
-  public getAuthenticatorInfo(): AuthenticatorInfo {
-    const authenticatorInfo = this.handleAuthenticatorCall(() =>
-      unpackGetInfoResponse(this.authenticator.command({ command: CTAP_COMMAND.authenticatorGetInfo })),
+  public async getAuthenticatorInfo(): Promise<AuthenticatorInfo> {
+    const authenticatorInfo = await this.handleAuthenticatorCall(async () =>
+      unpackGetInfoResponse(await this.authenticator.command({ command: CTAP_COMMAND.authenticatorGetInfo })),
     );
     return {
       version: authenticatorInfo.versions.join(", "),
@@ -129,9 +129,9 @@ export class WebAuthnEmulator {
     };
   }
 
-  public signalUnknownCredential(options: UnknownCredentialOptionsJSON): void {
+  public async signalUnknownCredential(options: UnknownCredentialOptionsJSON): Promise<void> {
     const credentialId = decodeBase64Url(options.credentialId);
-    this.handleAuthenticatorCall(() =>
+    await this.handleAuthenticatorCall(async () =>
       this.authenticator.command(
         packCredentialManagementRequest({
           subCommand: CREDENTIAL_MANAGEMENT_SUBCOMMAND.deleteCredential,
@@ -148,14 +148,14 @@ export class WebAuthnEmulator {
    * Signal all accepted credentials for a user
    * @see https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential/signalAllAcceptedCredentials_static
    */
-  public signalAllAcceptedCredentials(options: AllAcceptedCredentialsOptionsJSON): void {
+  public async signalAllAcceptedCredentials(options: AllAcceptedCredentialsOptionsJSON): Promise<void> {
     // Create a set of accepted credential IDs for quick lookup
     const acceptedCredentialIds = new Set(options.allAcceptedCredentialIds);
 
     // Start enumerating credentials for the specified RP
-    const beginResponse = this.handleAuthenticatorCall(() =>
+    const beginResponse = await this.handleAuthenticatorCall(async () =>
       unpackCredentialManagementResponse(
-        this.authenticator.command(
+        await this.authenticator.command(
           packCredentialManagementRequest({
             subCommand: CREDENTIAL_MANAGEMENT_SUBCOMMAND.enumerateCredentialsBegin,
             subCommandParams: {
@@ -170,24 +170,24 @@ export class WebAuthnEmulator {
     const totalCredentials = beginResponse.totalCredentials ?? 0;
 
     // Get all credentials for the RP and delete those not in the accepted list
-    this.processCredentials(options.rpId, options.userId, acceptedCredentialIds, totalCredentials);
+    await this.processCredentials(options.rpId, options.userId, acceptedCredentialIds, totalCredentials);
   }
 
   /**
    * Process credentials for an RP and delete those not in the accepted list
    */
-  private processCredentials(
+  private async processCredentials(
     rpId: string,
     userId: string,
     acceptedCredentialIds: Set<string>,
     totalCredentials: number,
-  ): void {
+  ): Promise<void> {
     // Process each credential
     for (let i = 0; i < totalCredentials; i++) {
       // Get next credential and unpack the response
-      const credResponse = this.handleAuthenticatorCall(() =>
+      const credResponse = await this.handleAuthenticatorCall(async () =>
         unpackCredentialManagementResponse(
-          this.authenticator.command(
+          await this.authenticator.command(
             packCredentialManagementRequest({
               subCommand: CREDENTIAL_MANAGEMENT_SUBCOMMAND.enumerateCredentialsGetNextCredential,
             }),
@@ -205,7 +205,7 @@ export class WebAuthnEmulator {
         const credentialId = EncodeUtils.encodeBase64Url(credResponse.credentialID);
         if (!acceptedCredentialIds.has(credentialId)) {
           // Delete the credential directly
-          this.handleAuthenticatorCall(() =>
+          await this.handleAuthenticatorCall(async () =>
             this.authenticator.command(
               packCredentialManagementRequest({
                 subCommand: CREDENTIAL_MANAGEMENT_SUBCOMMAND.deleteCredential,
@@ -225,7 +225,7 @@ export class WebAuthnEmulator {
    * Signal current user details
    * @see https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential/signalCurrentUserDetails_static
    */
-  public signalCurrentUserDetails(options: CurrentUserDetailsOptionsJSON): void {
+  public async signalCurrentUserDetails(options: CurrentUserDetailsOptionsJSON): Promise<void> {
     const userId = decodeBase64Url(options.userId);
 
     // Create user object with updated information
@@ -236,7 +236,7 @@ export class WebAuthnEmulator {
     };
 
     // Update user information using the credential management API
-    this.handleAuthenticatorCall(() =>
+    await this.handleAuthenticatorCall(async () =>
       this.authenticator.command(
         packCredentialManagementRequest({
           subCommand: CREDENTIAL_MANAGEMENT_SUBCOMMAND.updateUserInformation,
@@ -250,11 +250,11 @@ export class WebAuthnEmulator {
   }
 
   /** @see https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get */
-  public get(
+  public async get(
     origin: string,
     options: CredentialRequestOptions,
     relatedOrigins: string[] = [],
-  ): RequestPublicKeyCredential {
+  ): Promise<RequestPublicKeyCredential> {
     if (!options.publicKey) throw new TypeError("PublicKeyCredentialRequestOptions are required");
 
     const rpId = new RpId(options.publicKey.rpId ?? new URL(origin).hostname);
@@ -276,8 +276,8 @@ export class WebAuthnEmulator {
       allowList: options.publicKey.allowCredentials,
       options: toFido2RequestOptions(options.publicKey.userVerification),
     });
-    const authenticatorResponse = this.handleAuthenticatorCall(() =>
-      unpackGetAssertionResponse(this.authenticator.command(authenticatorRequest)),
+    const authenticatorResponse = await this.handleAuthenticatorCall(async () =>
+      unpackGetAssertionResponse(await this.authenticator.command(authenticatorRequest)),
     );
 
     const responseId =
@@ -307,11 +307,11 @@ export class WebAuthnEmulator {
   }
 
   /** @see https://developer.mozilla.org/ja/docs/Web/API/CredentialsContainer/create */
-  public create(
+  public async create(
     origin: string,
     options: CredentialCreationOptions,
     relatedOrigins: string[] = [],
-  ): CreatePublicKeyCredential {
+  ): Promise<CreatePublicKeyCredential> {
     if (!options.publicKey) throw new TypeError("PublicKeyCredentialCreationOptions are required");
 
     const rpId = new RpId(options.publicKey.rp.id ?? new URL(origin).hostname);
@@ -336,8 +336,8 @@ export class WebAuthnEmulator {
       excludeList: options.publicKey.excludeCredentials,
       options: toFido2CreateOptions(options.publicKey.authenticatorSelection),
     });
-    const authenticatorResponse = this.handleAuthenticatorCall(() =>
-      unpackMakeCredentialResponse(this.authenticator.command(authenticatorRequest)),
+    const authenticatorResponse = await this.handleAuthenticatorCall(async () =>
+      unpackMakeCredentialResponse(await this.authenticator.command(authenticatorRequest)),
     );
 
     const authData = unpackAuthenticatorData(authenticatorResponse.authData);

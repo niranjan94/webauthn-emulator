@@ -25,14 +25,14 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
     const testServer = new WebAuthnTestServer();
 
     const options = await testServer.getRegistrationOptions(user);
-    const credential1 = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential1 = await emulator.createJSON(TEST_RP_ORIGIN, options);
     await testServer.getRegistrationVerification(user, credential1);
 
-    const credential2 = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential2 = await emulator.createJSON(TEST_RP_ORIGIN, options);
     await testServer.getRegistrationVerification(user, credential2);
 
     // Last Credentials only
-    const credentialRecords = emulator.authenticator.params.credentialsRepository?.loadCredentials() ?? [];
+    const credentialRecords = (await (await emulator.authenticator.params.credentialsRepository?.loadCredentials())) ?? [];
     expect(credentialRecords.length).toBe(1);
     expect(EncodeUtils.encodeBase64Url(credentialRecords[0].publicKeyCredentialSource.id)).toBe(credential2.id);
   });
@@ -43,10 +43,10 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
     const testServer = new WebAuthnTestServer();
 
     const options = await testServer.getRegistrationOptions(user);
-    const call = () => emulator.createJSON(illegalOrigin, options);
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.createJSON(illegalOrigin, options);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -56,21 +56,21 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
 
   test("Create Passkeys with no public key credential parameters _ failed to response", async () => {
     const emulator = new WebAuthnEmulator();
-    const call = () => emulator.create(TEST_RP_ORIGIN, {});
-    expect(call).toThrow(TypeError);
+    const call = async () => await emulator.create(TEST_RP_ORIGIN, {});
+    await expect(call()).rejects.toThrow(TypeError);
   });
 
   test("Found in the exclude List _ CTAP Error", async () => {
     const emulator = new WebAuthnEmulator();
     const testServer = new WebAuthnTestServer();
     const options = await testServer.getRegistrationOptions(user);
-    const credential = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.createJSON(TEST_RP_ORIGIN, options);
     await testServer.getRegistrationVerification(user, credential);
     const options2 = await testServer.getRegistrationOptions(user);
-    const call = () => emulator.createJSON(TEST_RP_ORIGIN, options2);
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.createJSON(TEST_RP_ORIGIN, options2);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -83,10 +83,10 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
     const testServer = new WebAuthnTestServer();
     const options = await testServer.getRegistrationOptions(user);
     const illegalOptions = { ...options, pubKeyCredParams: [{ type: "public-key", alg: 99 } as const] };
-    const call = () => emulator.createJSON(TEST_RP_ORIGIN, illegalOptions);
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.createJSON(TEST_RP_ORIGIN, illegalOptions);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -101,10 +101,10 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
     const emulator = new WebAuthnEmulator(authenticator);
     const testServer = new WebAuthnTestServer();
     const options = await testServer.getRegistrationOptions(user);
-    const call = () => emulator.createJSON(TEST_RP_ORIGIN, options);
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.createJSON(TEST_RP_ORIGIN, options);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -121,7 +121,7 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
       ...options,
       rp: { name: "test" },
     };
-    const credential1 = emulator.createJSON(TEST_RP_ORIGIN, customOptions);
+    const credential1 = await emulator.createJSON(TEST_RP_ORIGIN, customOptions);
     await testServer.getRegistrationVerification(user, credential1);
   });
 });
@@ -136,7 +136,7 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     const emulator = new WebAuthnEmulator(authenticator);
 
     const options1 = await testServer1.getRegistrationOptions(user);
-    const credential1 = emulator.createJSON(testServer1.origin, options1);
+    const credential1 = await emulator.createJSON(testServer1.origin, options1);
     await testServer1.getRegistrationVerification(user, credential1);
 
     const options2 = await testServer2.getRegistrationOptions(user);
@@ -144,7 +144,7 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
       ...options2,
       authenticatorSelection: { residentKey: "discouraged" },
     };
-    const credential2 = emulator.createJSON(testServer2.origin, customOptions2);
+    const credential2 = await emulator.createJSON(testServer2.origin, customOptions2);
     await testServer2.getRegistrationVerification(user, credential2);
 
     return [emulator, testServer1];
@@ -153,7 +153,7 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
   test("Create and Authenticate Passkeys test _ OK", async () => {
     const [emulator, testServer] = await createCredential();
     const options = await testServer.getAuthenticationOptions();
-    const credential = emulator.getJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.getJSON(TEST_RP_ORIGIN, options);
     await testServer.getAuthenticationVerification(credential);
   });
 
@@ -161,7 +161,7 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     const authenticator = new AuthenticatorEmulator({ algorithmIdentifiers: ["EdDSA"] });
     const [emulator, testServer] = await createCredential(authenticator);
     const options = await testServer.getAuthenticationOptions();
-    const credential = emulator.getJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.getJSON(TEST_RP_ORIGIN, options);
     await testServer.getAuthenticationVerification(credential);
   });
 
@@ -169,7 +169,7 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     const authenticator = new AuthenticatorEmulator({ algorithmIdentifiers: ["RS256"] });
     const [emulator, testServer] = await createCredential(authenticator);
     const options = await testServer.getAuthenticationOptions();
-    const credential = emulator.getJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.getJSON(TEST_RP_ORIGIN, options);
     await testServer.getAuthenticationVerification(credential);
   });
 
@@ -177,13 +177,13 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     const authenticator = new AuthenticatorEmulator({ signCounterIncrement: 13 });
     const [emulator, testServer] = await createCredential(authenticator);
     const options1 = await testServer.getAuthenticationOptions();
-    const credential1 = emulator.getJSON(TEST_RP_ORIGIN, options1);
+    const credential1 = await emulator.getJSON(TEST_RP_ORIGIN, options1);
 
     const authData = unpackAuthenticatorData(EncodeUtils.decodeBase64Url(credential1.response.authenticatorData));
     expect(authData.signCount).toBe(13);
 
     const options2 = await testServer.getAuthenticationOptions();
-    const credential2 = emulator.getJSON(TEST_RP_ORIGIN, options2);
+    const credential2 = await emulator.getJSON(TEST_RP_ORIGIN, options2);
     const authData2 = unpackAuthenticatorData(EncodeUtils.decodeBase64Url(credential2.response.authenticatorData));
     expect(authData2.signCount).toBe(26);
   });
@@ -192,10 +192,10 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     const [emulator, testServer] = await createCredential();
     const illegalOrigin = `${TEST_RP_ORIGIN}_illegal`;
     const options = await testServer.getAuthenticationOptions();
-    const call = () => emulator.getJSON(illegalOrigin, options);
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.getJSON(illegalOrigin, options);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -205,21 +205,21 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
 
   test("Request Passkeys with no public key credential parameters _ failed to response", async () => {
     const emulator = new WebAuthnEmulator();
-    const call = () => emulator.get(TEST_RP_ORIGIN, {} as CredentialRequestOptions);
-    expect(call).toThrow(TypeError);
+    const call = async () => await emulator.get(TEST_RP_ORIGIN, {} as CredentialRequestOptions);
+    await expect(call()).rejects.toThrow(TypeError);
   });
 
   test("Not found in allow list _ CTAP Error", async () => {
     const [emulator, testServer] = await createCredential();
     const options = await testServer.getAuthenticationOptions();
-    const call = () =>
-      emulator.getJSON(TEST_RP_ORIGIN, {
+    const call = async () =>
+      await emulator.getJSON(TEST_RP_ORIGIN, {
         ...options,
         allowCredentials: [{ id: "AAAAAA", type: "public-key" }],
       });
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -233,10 +233,10 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     });
     const [emulator, testServer] = await createCredential(authenticator);
     const options = await testServer.getAuthenticationOptions();
-    const call = () => emulator.getJSON(TEST_RP_ORIGIN, options);
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.getJSON(TEST_RP_ORIGIN, options);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -247,8 +247,8 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
   test("Only one credential is allowed and RP ID is undefined _ credential is undefined and OK", async () => {
     const [emulator, testServer] = await createCredential();
     const options = await testServer.getAuthenticationOptions();
-    const credential = (emulator.authenticator.params.credentialsRepository?.loadCredentials() ?? [])[0];
-    emulator.getJSON(TEST_RP_ORIGIN, {
+    const credential = ((await emulator.authenticator.params.credentialsRepository?.loadCredentials()) ?? [])[0];
+    await emulator.getJSON(TEST_RP_ORIGIN, {
       ...options,
       rpId: undefined,
 
@@ -260,10 +260,10 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
     const authenticator = new AuthenticatorEmulator({ stateless: true });
     const [emulator, testServer] = await createCredential(authenticator);
     const options = await testServer.getAuthenticationOptions();
-    const credential = emulator.getJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.getJSON(TEST_RP_ORIGIN, options);
     await testServer.getAuthenticationVerification(credential);
 
-    const credentialRecords = emulator.authenticator.params.credentialsRepository?.loadCredentials() ?? [];
+    const credentialRecords = (await emulator.authenticator.params.credentialsRepository?.loadCredentials()) ?? [];
     const authData = unpackAuthenticatorData(EncodeUtils.decodeBase64Url(credential.response.authenticatorData));
     expect(credentialRecords.length).toBe(0);
     expect(authData.signCount).toBe(0);
@@ -271,9 +271,9 @@ describe("WebAuthnEmulator Authentication Passkeys Test", () => {
 });
 
 describe("WebAuthnEmulator getAuthenticatorInfo Test", () => {
-  test("Get Authenticator Information _ OK", () => {
+  test("Get Authenticator Information _ OK", async () => {
     const emulator = new WebAuthnEmulator();
-    const info = emulator.getAuthenticatorInfo();
+    const info = await emulator.getAuthenticatorInfo();
     expect(info).toEqual({
       version: "FIDO_2_0",
       aaguid: "TklELUFVVEgtMzE0MTU5Mg",
@@ -285,7 +285,7 @@ describe("WebAuthnEmulator getAuthenticatorInfo Test", () => {
 describe("WebAuthnEmulator signalUnknownCredential Test", () => {
   test("Signal Unknown Credential _ OK", async () => {
     const user = { username: "test-signal", id: "test-signal" };
-    // Create a new emulator with a clean repository
+    // Create a new emulator with a clean const repository
     const repository = new PasskeysCredentialsMemoryRepository();
     const authenticator = new AuthenticatorEmulator({
       credentialsRepository: repository,
@@ -295,21 +295,21 @@ describe("WebAuthnEmulator signalUnknownCredential Test", () => {
 
     // Create a credential
     const options = await testServer.getRegistrationOptions(user);
-    const credential = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.createJSON(TEST_RP_ORIGIN, options);
     await testServer.getRegistrationVerification(user, credential);
 
     // Verify the credential exists
-    const credentialsBefore = repository.loadCredentials();
+    const credentialsBefore = await repository.loadCredentials();
     expect(credentialsBefore.length).toBe(1);
 
     // Signal unknown credential
-    emulator.signalUnknownCredential({
+    await emulator.signalUnknownCredential({
       rpId: TEST_RP_ORIGIN.replace("https://", ""),
       credentialId: credential.id,
     });
 
     // Verify the credential was deleted
-    const credentialsAfter = repository.loadCredentials();
+    const credentialsAfter = await repository.loadCredentials();
     expect(credentialsAfter.length).toBe(0);
   });
 });
@@ -319,7 +319,7 @@ describe("WebAuthnEmulator signalAllAcceptedCredentials Test", () => {
     // Create users
     const user = { username: "user1", id: "user1-id" };
 
-    // Create a new emulator with a clean repository
+    // Create a new emulator with a clean const repository
     const repository = new PasskeysCredentialsMemoryRepository();
     const authenticator = new AuthenticatorEmulator({
       credentialsRepository: repository,
@@ -329,17 +329,17 @@ describe("WebAuthnEmulator signalAllAcceptedCredentials Test", () => {
     const options = await testServer.getRegistrationOptions(user);
 
     // Create credential1 for user
-    const credential1 = emulator.createJSON(TEST_RP_ORIGIN, options);
-    const backupCredential1 = repository.loadCredentials()[0];
+    const credential1 = await emulator.createJSON(TEST_RP_ORIGIN, options);
+    const backupCredential1 = (await repository.loadCredentials())[0];
 
     // Create credential2 for user (credential1 is overwritten)
-    const credential2 = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential2 = await emulator.createJSON(TEST_RP_ORIGIN, options);
 
     // restore credential1
-    repository.saveCredential(backupCredential1);
+    await repository.saveCredential(backupCredential1);
 
     // Verify all credentials exist
-    const credentialsBefore = repository.loadCredentials();
+    const credentialsBefore = await repository.loadCredentials();
     expect(credentialsBefore.length).toBe(2);
 
     // Get the user1 credentials
@@ -354,14 +354,14 @@ describe("WebAuthnEmulator signalAllAcceptedCredentials Test", () => {
     );
 
     // Signal that only the first credential is accepted for user1
-    emulator.signalAllAcceptedCredentials({
+    await emulator.signalAllAcceptedCredentials({
       rpId: TEST_RP_ORIGIN.replace("https://", ""),
       userId: actualUserId,
       allAcceptedCredentialIds: [credential1.id],
     });
 
     // Verify that one credential was deleted
-    const credentialsAfter = repository.loadCredentials();
+    const credentialsAfter = await repository.loadCredentials();
     expect(credentialsAfter.length).toBe(1);
 
     // Check that credential1 and credential3 still exist
@@ -380,7 +380,7 @@ describe("WebAuthnEmulator signalAllAcceptedCredentials Test", () => {
     // Create user
     const user = { username: "user-test", id: "user-test-id" };
 
-    // Create a new emulator with a clean repository
+    // Create a new emulator with a clean const repository
     const repository = new PasskeysCredentialsMemoryRepository();
     const authenticator = new AuthenticatorEmulator({
       credentialsRepository: repository,
@@ -390,27 +390,27 @@ describe("WebAuthnEmulator signalAllAcceptedCredentials Test", () => {
 
     // Create a credential for the user
     const options = await testServer.getRegistrationOptions(user);
-    const credential1 = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential1 = await emulator.createJSON(TEST_RP_ORIGIN, options);
     await testServer.getRegistrationVerification(user, credential1);
 
     // Verify credentials exist
-    const credentialsBefore = repository.loadCredentials();
+    const credentialsBefore = await repository.loadCredentials();
     expect(credentialsBefore.length).toBe(1);
 
     // Get the actual user ID from the credential
     const actualUserId = EncodeUtils.encodeBase64Url(credentialsBefore[0].user.id);
 
     // Signal empty accepted credentials list
-    emulator.signalAllAcceptedCredentials({
+    await emulator.signalAllAcceptedCredentials({
       rpId: TEST_RP_ORIGIN.replace("https://", ""),
       userId: actualUserId,
       allAcceptedCredentialIds: [],
     });
 
     // Verify all user credentials were deleted
-    const userCredentialsAfter = repository
-      .loadCredentials()
-      .filter((cred) => EncodeUtils.encodeBase64Url(cred.user.id) === actualUserId);
+    const userCredentialsAfter = (await repository.loadCredentials()).filter(
+      (cred) => EncodeUtils.encodeBase64Url(cred.user.id) === actualUserId,
+    );
 
     expect(userCredentialsAfter.length).toBe(0);
   });
@@ -428,17 +428,17 @@ describe("WebAuthnEmulator relatedOrigins Test", () => {
 
     // Register a credential
     const regOptions = await testServer.getRegistrationOptions(user);
-    const credential = emulator.createJSON(testServer.origin, regOptions, relatedOrigins);
+    const credential = await emulator.createJSON(testServer.origin, regOptions, relatedOrigins);
     await testServer.getRegistrationVerification(user, credential);
 
     // Create authentication options
     const authOptions = await testServer.getAuthenticationOptions();
 
     // Standard RP ID validation only
-    const invalidCall = () => emulator.getJSON(testServer.origin, authOptions);
-    expect(invalidCall).toThrow(DOMException as unknown as ErrorConstructor);
+    const invalidCall = async () => await emulator.getJSON(testServer.origin, authOptions);
+    await expect(invalidCall()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      invalidCall();
+      await invalidCall();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -446,7 +446,7 @@ describe("WebAuthnEmulator relatedOrigins Test", () => {
     }
 
     // Related origins validation
-    const authResponse = emulator.getJSON(testServer.origin, authOptions, relatedOrigins);
+    const authResponse = await emulator.getJSON(testServer.origin, authOptions, relatedOrigins);
     expect(authResponse).toBeDefined();
     expect(authResponse.id).toBe(credential.id);
   });
@@ -457,7 +457,7 @@ describe("WebAuthnEmulator signalCurrentUserDetails Test", () => {
     // Create user
     const user = { username: "user-details", id: "user-details-id" };
 
-    // Create a new emulator with a clean repository
+    // Create a new emulator with a clean const repository
     const repository = new PasskeysCredentialsMemoryRepository();
     const authenticator = new AuthenticatorEmulator({
       credentialsRepository: repository,
@@ -467,11 +467,11 @@ describe("WebAuthnEmulator signalCurrentUserDetails Test", () => {
 
     // Create a credential
     const options = await testServer.getRegistrationOptions(user);
-    const credential = emulator.createJSON(TEST_RP_ORIGIN, options);
+    const credential = await emulator.createJSON(TEST_RP_ORIGIN, options);
     await testServer.getRegistrationVerification(user, credential);
 
     // Verify the credential exists with original user details
-    const credentialsBefore = repository.loadCredentials();
+    const credentialsBefore = await repository.loadCredentials();
     expect(credentialsBefore.length).toBe(1);
     expect(credentialsBefore[0].user.name).toBe(user.username);
     // Note: We don't check displayName as it's not consistently set by the test server
@@ -483,7 +483,7 @@ describe("WebAuthnEmulator signalCurrentUserDetails Test", () => {
     const updatedName = "Updated User Name";
     const updatedDisplayName = "Updated Display Name";
 
-    emulator.signalCurrentUserDetails({
+    await emulator.signalCurrentUserDetails({
       rpId: TEST_RP_ORIGIN.replace("https://", ""),
       userId: actualUserId,
       name: updatedName,
@@ -491,7 +491,7 @@ describe("WebAuthnEmulator signalCurrentUserDetails Test", () => {
     });
 
     // Verify the user details were updated
-    const credentialsAfter = repository.loadCredentials();
+    const credentialsAfter = await repository.loadCredentials();
     expect(credentialsAfter.length).toBe(1);
     expect(credentialsAfter[0].user.name).toBe(updatedName);
     expect(credentialsAfter[0].user.displayName).toBe(updatedDisplayName);
@@ -502,7 +502,7 @@ describe("WebAuthnEmulator signalCurrentUserDetails Test", () => {
   });
 
   test("Signal Current User Details with non-existent user _ Error", async () => {
-    // Create a new emulator with a clean repository
+    // Create a new emulator with a clean const repository
     const repository = new PasskeysCredentialsMemoryRepository();
     const authenticator = new AuthenticatorEmulator({
       credentialsRepository: repository,
@@ -512,14 +512,14 @@ describe("WebAuthnEmulator signalCurrentUserDetails Test", () => {
     // Try to update non-existent user
     const nonExistentUserId = "non-existent-user-id";
 
-    expect(() => {
+    await expect(
       emulator.signalCurrentUserDetails({
         rpId: TEST_RP_ORIGIN.replace("https://", ""),
         userId: EncodeUtils.encodeBase64Url(EncodeUtils.strToUint8Array(nonExistentUserId)),
         name: "New Name",
         displayName: "New Display Name",
-      });
-    }).toThrow(); // Should throw CTAP2_ERR_NO_CREDENTIALS
+      }),
+    ).rejects.toThrow(); // Should throw CTAP2_ERR_NO_CREDENTIALS
   });
 });
 
@@ -530,12 +530,12 @@ describe("WebAuthnEmulator getClientExtensionResults.rk coverage", () => {
 
     const user = { username: "ext-user", id: "ext-user" };
     const regOptions = await testServer.getRegistrationOptions(user);
-    const regResp = emulator.createJSON(TEST_RP_ORIGIN, regOptions);
+    const regResp = await emulator.createJSON(TEST_RP_ORIGIN, regOptions);
     await testServer.getRegistrationVerification(user, regResp);
 
     const reqOptions = await testServer.getAuthenticationOptions();
     const parsed = parseRequestOptionsFromJSON(reqOptions);
-    const cred = emulator.get(TEST_RP_ORIGIN, { publicKey: parsed });
+    const cred = await emulator.get(TEST_RP_ORIGIN, { publicKey: parsed });
 
     const ext = cred.getClientExtensionResults();
     expect("credProps" in ext && ext.credProps).toBeTruthy();
@@ -550,7 +550,7 @@ describe("WebAuthnEmulator getClientExtensionResults.rk coverage", () => {
 
     const user = { username: "ext-user2", id: "ext-user2" };
     const regOptions = await testServer.getRegistrationOptions(user);
-    const regResp = emulator.createJSON(TEST_RP_ORIGIN, regOptions);
+    const regResp = await emulator.createJSON(TEST_RP_ORIGIN, regOptions);
     await testServer.getRegistrationVerification(user, regResp);
 
     const reqOptions = await testServer.getAuthenticationOptions();
@@ -560,7 +560,7 @@ describe("WebAuthnEmulator getClientExtensionResults.rk coverage", () => {
     };
 
     const parsed = parseRequestOptionsFromJSON(singleAllow);
-    const cred = emulator.get(TEST_RP_ORIGIN, { publicKey: parsed });
+    const cred = await emulator.get(TEST_RP_ORIGIN, { publicKey: parsed });
     const ext = cred.getClientExtensionResults();
     expect("credProps" in ext && ext.credProps).toBeTruthy();
     if ("credProps" in ext && ext.credProps) {
@@ -569,7 +569,7 @@ describe("WebAuthnEmulator getClientExtensionResults.rk coverage", () => {
   });
 
   test("signalAllAcceptedCredentials skips credentials when userId mismatches", async () => {
-    // repository-backed authenticator with isolated repository
+    // repository-backed authenticator with isolated const repository
     const emulator = new WebAuthnEmulator(
       new AuthenticatorEmulator({ credentialsRepository: new PasskeysCredentialsMemoryRepository() }),
     );
@@ -577,24 +577,24 @@ describe("WebAuthnEmulator getClientExtensionResults.rk coverage", () => {
 
     const user = { username: "ext-user3", id: "ext-user3" };
     const regOptions = await testServer.getRegistrationOptions(user);
-    const regResp = emulator.createJSON(TEST_RP_ORIGIN, regOptions);
+    const regResp = await emulator.createJSON(TEST_RP_ORIGIN, regOptions);
     const repository = emulator.authenticator.params.credentialsRepository as PasskeysCredentialsRepository;
     await testServer.getRegistrationVerification(user, regResp);
 
     // credentials exist
-    const before = repository.loadCredentials();
+    const before = await repository.loadCredentials();
     expect(before.length).toBe(1);
     const existingId = before.map((c) => EncodeUtils.encodeBase64Url(c.publicKeyCredentialSource.id))[0];
     const actualUserId = EncodeUtils.encodeBase64Url(before[0].user.id);
     // ensure mismatch by altering actualUserId
     const wrongUserId = `${actualUserId}-mismatch`;
-    emulator.signalAllAcceptedCredentials({
+    await emulator.signalAllAcceptedCredentials({
       rpId: TEST_RP_ORIGIN.replace("https://", ""),
       userId: wrongUserId,
       allAcceptedCredentialIds: [], // even though empty, mismatch should skip deletion
     });
 
-    const after = repository.loadCredentials();
+    const after = await repository.loadCredentials();
     const remainingIds = after.map((c) => EncodeUtils.encodeBase64Url(c.publicKeyCredentialSource.id));
     expect(remainingIds).toContain(existingId); // original credential remains
     expect(after.length).toBe(1); // unchanged
@@ -602,31 +602,31 @@ describe("WebAuthnEmulator getClientExtensionResults.rk coverage", () => {
 
   test("signalAllAcceptedCredentials handles undefined totalCredentials (defaults to 0)", async () => {
     class BeginNoTotalAuthenticator extends AuthenticatorEmulator {
-      override command(request: CTAPAuthenticatorRequest): CTAPAuthenticatorResponse {
+      override async command(request: CTAPAuthenticatorRequest): Promise<CTAPAuthenticatorResponse> {
         if (request.command === CTAP_COMMAND.authenticatorCredentialManagement) {
           return packCredentialManagementResponse({});
         }
-        return super.command(request);
+        return await super.command(request);
       }
     }
 
     const emulator = new WebAuthnEmulator(new BeginNoTotalAuthenticator());
-    expect(() =>
+    await expect(
       emulator.signalAllAcceptedCredentials({
         rpId: TEST_RP_ORIGIN.replace("https://", ""),
         userId: "any-user",
         allAcceptedCredentialIds: [],
       }),
-    ).not.toThrow();
+    ).resolves.not.toThrow();
   });
 });
 
 describe("WebAuthnEmulator DOMException mapping coverage", () => {
-  test("signalCurrentUserDetails with invalid parameter → DataError", () => {
+  test("signalCurrentUserDetails with invalid parameter → DataError", async () => {
     const emulator = new WebAuthnEmulator(new AuthenticatorEmulator());
     const userId = EncodeUtils.encodeBase64Url(EncodeUtils.strToUint8Array("uid"));
 
-    const call = () =>
+    const call = async () =>
       (emulator as unknown as { signalCurrentUserDetails: (o: unknown) => void }).signalCurrentUserDetails({
         // Force rpId to be undefined to trigger CTAP1_ERR_INVALID_PARAMETER inside authenticator
         rpId: undefined,
@@ -635,9 +635,9 @@ describe("WebAuthnEmulator DOMException mapping coverage", () => {
         displayName: "d",
       });
 
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -645,18 +645,18 @@ describe("WebAuthnEmulator DOMException mapping coverage", () => {
     }
   });
 
-  test("getAuthenticatorInfo with invalid CBOR → DataError", () => {
+  test("getAuthenticatorInfo with invalid CBOR → DataError", async () => {
     class BadCborAuthenticator extends AuthenticatorEmulator {
-      override command(): CTAPAuthenticatorResponse {
+      override async command(): Promise<CTAPAuthenticatorResponse> {
         return { status: CTAP_STATUS_CODE.CTAP2_OK, data: new Uint8Array([0xff]) } as CTAPAuthenticatorResponse;
       }
     }
     const emulator = new WebAuthnEmulator(new BadCborAuthenticator());
 
-    const call = () => emulator.getAuthenticatorInfo();
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.getAuthenticatorInfo();
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -664,18 +664,18 @@ describe("WebAuthnEmulator DOMException mapping coverage", () => {
     }
   });
 
-  test("getAuthenticatorInfo with invalid command → UnknownError", () => {
+  test("getAuthenticatorInfo with invalid command → UnknownError", async () => {
     class InvalidCommandAuthenticator extends AuthenticatorEmulator {
-      override command(): CTAPAuthenticatorResponse {
+      override async command(): Promise<CTAPAuthenticatorResponse> {
         throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP1_ERR_INVALID_COMMAND);
       }
     }
     const emulator = new WebAuthnEmulator(new InvalidCommandAuthenticator());
 
-    const call = () => emulator.getAuthenticatorInfo();
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    const call = async () => await emulator.getAuthenticatorInfo();
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -685,16 +685,16 @@ describe("WebAuthnEmulator DOMException mapping coverage", () => {
 });
 
 describe("WebAuthnEmulator credential management error mapping", () => {
-  test("signalUnknownCredential on stateless authenticator → NotAllowedError", () => {
+  test("signalUnknownCredential on stateless authenticator → NotAllowedError", async () => {
     const emulator = new WebAuthnEmulator(new AuthenticatorEmulator({ stateless: true }));
-    const call = () =>
-      emulator.signalUnknownCredential({
+    const call = async () =>
+      await emulator.signalUnknownCredential({
         rpId: "example.com",
         credentialId: EncodeUtils.encodeBase64Url(EncodeUtils.strToUint8Array("nope")),
       });
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -706,14 +706,14 @@ describe("WebAuthnEmulator credential management error mapping", () => {
     const repository = new PasskeysCredentialsMemoryRepository();
     const authenticator = new AuthenticatorEmulator({ credentialsRepository: repository });
     const emulator = new WebAuthnEmulator(authenticator);
-    const call = () =>
-      emulator.signalUnknownCredential({
+    const call = async () =>
+      await emulator.signalUnknownCredential({
         rpId: "example.com",
         credentialId: EncodeUtils.encodeBase64Url(EncodeUtils.strToUint8Array("missing")),
       });
-    expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
     try {
-      call();
+      await call();
       throw new Error("Expected DOMException");
     } catch (e: unknown) {
       expect(e).toBeInstanceOf(DOMException);
@@ -723,23 +723,23 @@ describe("WebAuthnEmulator credential management error mapping", () => {
 });
 
 describe("WebAuthnEmulator invalid CBOR mapping on create/get", () => {
-  test("create path invalid CBOR → DataError", () => {
+  test("create path invalid CBOR → DataError", async () => {
     class BadCreateCborAuthenticator extends AuthenticatorEmulator {
-      override command(request: CTAPAuthenticatorRequest): CTAPAuthenticatorResponse {
+      override async command(request: CTAPAuthenticatorRequest): Promise<CTAPAuthenticatorResponse> {
         if (request.command === CTAP_COMMAND.authenticatorMakeCredential) {
           return { status: CTAP_STATUS_CODE.CTAP2_OK, data: new Uint8Array([0xff]) } as CTAPAuthenticatorResponse;
         }
-        return super.command(request);
+        return await super.command(request);
       }
     }
     const emulator = new WebAuthnEmulator(new BadCreateCborAuthenticator());
     const user = { username: "bad-cbor", id: "bad-cbor" };
     const server = new WebAuthnTestServer();
-    return server.getRegistrationOptions(user).then((opts) => {
-      const call = () => emulator.createJSON(TEST_RP_ORIGIN, opts);
-      expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+    return server.getRegistrationOptions(user).then(async (opts) => {
+      const call = async () => await emulator.createJSON(TEST_RP_ORIGIN, opts);
+      await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
       try {
-        call();
+        await call();
         throw new Error("Expected DOMException");
       } catch (e: unknown) {
         expect(e).toBeInstanceOf(DOMException);
@@ -748,27 +748,27 @@ describe("WebAuthnEmulator invalid CBOR mapping on create/get", () => {
     });
   });
 
-  test("get path invalid CBOR → DataError", () => {
+  test("get path invalid CBOR → DataError", async () => {
     class BadGetCborAuthenticator extends AuthenticatorEmulator {
-      override command(request: CTAPAuthenticatorRequest): CTAPAuthenticatorResponse {
+      override async command(request: CTAPAuthenticatorRequest): Promise<CTAPAuthenticatorResponse> {
         if (request.command === CTAP_COMMAND.authenticatorGetAssertion) {
           return { status: CTAP_STATUS_CODE.CTAP2_OK, data: new Uint8Array([0xff]) } as CTAPAuthenticatorResponse;
         }
-        return super.command(request);
+        return await super.command(request);
       }
     }
 
     const emulator = new WebAuthnEmulator(new BadGetCborAuthenticator());
     const server = new WebAuthnTestServer();
     const user = { username: "bad-cbor2", id: "bad-cbor2" };
-    return server.getRegistrationOptions(user).then((reg) => {
-      const regResp = emulator.createJSON(TEST_RP_ORIGIN, reg);
+    return server.getRegistrationOptions(user).then(async (reg) => {
+      const regResp = await emulator.createJSON(TEST_RP_ORIGIN, reg);
       return server.getRegistrationVerification(user, regResp).then(async () => {
         const req = await server.getAuthenticationOptions();
-        const call = () => emulator.getJSON(TEST_RP_ORIGIN, req);
-        expect(call).toThrow(DOMException as unknown as ErrorConstructor);
+        const call = async () => await emulator.getJSON(TEST_RP_ORIGIN, req);
+        await expect(call()).rejects.toThrow(DOMException as unknown as ErrorConstructor);
         try {
-          call();
+          await call();
           throw new Error("Expected DOMException");
         } catch (e: unknown) {
           expect(e).toBeInstanceOf(DOMException);
@@ -780,16 +780,16 @@ describe("WebAuthnEmulator invalid CBOR mapping on create/get", () => {
 });
 
 describe("handleAuthenticatorCall other error path", () => {
-  test("getAuthenticatorInfo rethrows non-CTAP errors as-is", () => {
+  test("getAuthenticatorInfo rethrows non-CTAP errors as-is", async () => {
     class ThrowingAuthenticator extends AuthenticatorEmulator {
-      override command(): CTAPAuthenticatorResponse {
+      override async command(): Promise<CTAPAuthenticatorResponse> {
         throw new Error("Non-CTAP failure");
       }
     }
     const emulator = new WebAuthnEmulator(new ThrowingAuthenticator());
 
     try {
-      emulator.getAuthenticatorInfo();
+      await emulator.getAuthenticatorInfo();
       throw new Error("Expected Error to be thrown");
     } catch (e: unknown) {
       // Should not be mapped to DOMException; should be the original error

@@ -10,12 +10,12 @@ describe("Passkeys Integration Test by webauthn.io", () => {
     const user = webauthnIO.getUser();
 
     // Authenticator Information
-    console.log("Authenticator Information", emulator.getAuthenticatorInfo());
+    console.log("Authenticator Information", await emulator.getAuthenticatorInfo());
 
     // Create passkey.
     const creationOptions = await webauthnIO.getRegistrationOptions(user);
     console.log("Registration options", creationOptions);
-    const creationCredential = emulator.createJSON(origin, creationOptions);
+    const creationCredential = await emulator.createJSON(origin, creationOptions);
     console.log("Registration credential", creationCredential);
     await webauthnIO.getRegistrationVerification(user, creationCredential);
     console.log("Registration verification completed");
@@ -23,7 +23,7 @@ describe("Passkeys Integration Test by webauthn.io", () => {
     // Authenticate passkey.
     const requestOptions = await webauthnIO.getAuthenticationOptions();
     console.log("Authentication options", requestOptions);
-    const requestCredential = emulator.getJSON(origin, requestOptions);
+    const requestCredential = await emulator.getJSON(origin, requestOptions);
     console.log("Authentication credential", requestCredential);
     await webauthnIO.getAuthenticationVerification(requestCredential);
     console.log("Authentication verification completed");

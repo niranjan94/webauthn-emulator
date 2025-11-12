@@ -12,20 +12,22 @@ A class that emulates the main functionality of an Authenticator based on the CT
 
 #### Key Methods
 
-1. `command(request: CTAPAuthenticatorRequest): CTAPAuthenticatorResponse`
+**Note:** Most methods are asynchronous and return Promises. Always use `await` or `.then()` when calling async methods.
 
-   - Receives CTAP commands and returns appropriate responses.
+1. `async command(request: CTAPAuthenticatorRequest): Promise<CTAPAuthenticatorResponse>`
+
+   - Receives CTAP commands and returns appropriate responses asynchronously.
 
 2. `authenticatorGetInfo(): AuthenticatorGetInfoResponse`
 
-   - Returns information about the Authenticator.
+   - Returns information about the Authenticator. (Synchronous method)
 
-3. `authenticatorMakeCredential(request: AuthenticatorMakeCredentialRequest): AuthenticatorMakeCredentialResponse`
+3. `async authenticatorMakeCredential(request: AuthenticatorMakeCredentialRequest): Promise<AuthenticatorMakeCredentialResponse>`
 
-   - Creates new credentials.
+   - Creates new credentials asynchronously.
 
-4. `authenticatorGetAssertion(request: AuthenticatorGetAssertionRequest): AuthenticatorGetAssertionResponse`
-   - Performs authentication using existing credentials.
+4. `async authenticatorGetAssertion(request: AuthenticatorGetAssertionRequest): Promise<AuthenticatorGetAssertionResponse>`
+   - Performs authentication using existing credentials asynchronously with atomic sign count updates.
 
 ## Key Features
 
@@ -43,8 +45,9 @@ A class that emulates the main functionality of an Authenticator based on the CT
 
 ## Security Considerations
 
-- Exclude list and allow list processing: Performs appropriate credential filtering during credential creation and authentication.
-- Signature counter management: Increases the signature counter with each authentication to prevent replay attacks.
+- **Exclude list and allow list processing**: Performs appropriate credential filtering during credential creation and authentication.
+- **Signature counter management**: Increases the signature counter with each authentication to prevent replay attacks. Sign count updates are performed atomically using transactions to prevent race conditions in concurrent authentication scenarios.
+- **Transaction support**: All credential repository operations support transactions, ensuring that concurrent operations don't interfere with each other. This is critical for maintaining the integrity of the sign counter, which is a key security feature for detecting cloned credentials.
 
 ## Error Handling
 
@@ -68,7 +71,10 @@ Using `AuthenticatorParameters`, you can customize the following items:
 - Signature counter increment
 - User verification and presence confirmation simulation
 - User interaction simulation
-- Credential storage method
+- **Credential storage method**: Implement the `PasskeysCredentialsRepository` interface to use custom storage backends (e.g., databases, Redis, etc.). The repository interface requires:
+  - Async methods for all CRUD operations
+  - A `transaction<T>()` method for atomic operations
+  - See the main README for detailed examples of implementing custom repositories
 - Stateless mode activation
 
 ## Usage Example
@@ -86,7 +92,7 @@ const emulator = new AuthenticatorEmulator({
 const makeCredentialRequest = {
   /* ... */
 };
-const credentialResponse = emulator.command({
+const credentialResponse = await emulator.command({
   command: CTAP_COMMAND.authenticatorMakeCredential,
   request: makeCredentialRequest,
 });
@@ -95,7 +101,7 @@ const credentialResponse = emulator.command({
 const getAssertionRequest = {
   /* ... */
 };
-const assertionResponse = emulator.command({
+const assertionResponse = await emulator.command({
   command: CTAP_COMMAND.authenticatorGetAssertion,
   request: getAssertionRequest,
 });

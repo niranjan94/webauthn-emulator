@@ -118,17 +118,17 @@ export class AuthenticatorEmulator {
   }
 
   /** @see https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#authenticator-api */
-  public command(request: CTAPAuthenticatorRequest): CTAPAuthenticatorResponse {
+  public async command(request: CTAPAuthenticatorRequest): Promise<CTAPAuthenticatorResponse> {
     const unpackedRequest = unpackRequest(request);
     if (unpackedRequest.command === CTAP_COMMAND.authenticatorMakeCredential) {
       const makeCredentialRequest = unpackedRequest.request as AuthenticatorMakeCredentialRequest;
-      const makeCredentialResponse = this.authenticatorMakeCredential(makeCredentialRequest);
+      const makeCredentialResponse = await this.authenticatorMakeCredential(makeCredentialRequest);
       return packMakeCredentialResponse(makeCredentialResponse);
     }
 
     if (unpackedRequest.command === CTAP_COMMAND.authenticatorGetAssertion) {
       const getAssertionRequest = unpackedRequest.request as AuthenticatorGetAssertionRequest;
-      const getAssertionResponse = this.authenticatorGetAssertion(getAssertionRequest);
+      const getAssertionResponse = await this.authenticatorGetAssertion(getAssertionRequest);
       return packGetAssertionResponse(getAssertionResponse);
     }
 
@@ -138,7 +138,7 @@ export class AuthenticatorEmulator {
 
     if (unpackedRequest.command === CTAP_COMMAND.authenticatorCredentialManagement) {
       const credentialManagementRequest = unpackCredentialManagementRequest(request);
-      const credentialManagementResponse = this.authenticatorCredentialManagement(credentialManagementRequest);
+      const credentialManagementResponse = await this.authenticatorCredentialManagement(credentialManagementRequest);
       return packCredentialManagementResponse(credentialManagementResponse);
     }
 
@@ -148,9 +148,9 @@ export class AuthenticatorEmulator {
   /**
    * @see https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-errata-20220621.html#authenticatorCredentialManagement
    */
-  public authenticatorCredentialManagement(
+  public async authenticatorCredentialManagement(
     request: AuthenticatorCredentialManagementRequest,
-  ): AuthenticatorCredentialManagementResponse {
+  ): Promise<AuthenticatorCredentialManagementResponse> {
     const repository = this.params.credentialsRepository;
     if (!repository) {
       throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NOT_ALLOWED);
@@ -158,13 +158,13 @@ export class AuthenticatorEmulator {
 
     switch (request.subCommand) {
       case CREDENTIAL_MANAGEMENT_SUBCOMMAND.deleteCredential:
-        return this.authenticatorDeleteCredential(request);
+        return await this.authenticatorDeleteCredential(request);
       case CREDENTIAL_MANAGEMENT_SUBCOMMAND.enumerateCredentialsBegin:
-        return this.authenticatorEnumerateCredentialsBegin(request);
+        return await this.authenticatorEnumerateCredentialsBegin(request);
       case CREDENTIAL_MANAGEMENT_SUBCOMMAND.enumerateCredentialsGetNextCredential:
         return this.authenticatorEnumerateCredentialsGetNextCredential();
       case CREDENTIAL_MANAGEMENT_SUBCOMMAND.updateUserInformation:
-        return this.authenticatorUpdateUserInformation(request);
+        return await this.authenticatorUpdateUserInformation(request);
       default:
         throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP1_ERR_INVALID_COMMAND);
     }
@@ -177,9 +177,9 @@ export class AuthenticatorEmulator {
     currentIndex: number;
   } | null = null;
 
-  private authenticatorEnumerateCredentialsBegin(
+  private async authenticatorEnumerateCredentialsBegin(
     request: AuthenticatorCredentialManagementRequest,
-  ): AuthenticatorCredentialManagementResponse {
+  ): Promise<AuthenticatorCredentialManagementResponse> {
     const repository = this.params.credentialsRepository;
     if (!repository) {
       throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NOT_ALLOWED);
@@ -191,7 +191,7 @@ export class AuthenticatorEmulator {
     }
 
     // Get all credentials for the RP
-    const allCredentials = repository.loadCredentials();
+    const allCredentials = await repository.loadCredentials();
     const rpCredentials = allCredentials.filter((cred) => cred.publicKeyCredentialSource.rpId.value === rpId);
 
     // Store the enumeration state
@@ -220,9 +220,9 @@ export class AuthenticatorEmulator {
     };
   }
 
-  private authenticatorUpdateUserInformation(
+  private async authenticatorUpdateUserInformation(
     request: AuthenticatorCredentialManagementRequest,
-  ): AuthenticatorCredentialManagementResponse {
+  ): Promise<AuthenticatorCredentialManagementResponse> {
     const repository = this.params.credentialsRepository;
     if (!repository) {
       throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NOT_ALLOWED);
@@ -235,38 +235,40 @@ export class AuthenticatorEmulator {
       throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP1_ERR_INVALID_PARAMETER);
     }
 
-    // Find all credentials for this user and RP
-    const allCredentials = repository.loadCredentials();
-    const userCredentials = allCredentials.filter(
-      (cred) =>
-        cred.publicKeyCredentialSource.rpId.value === rpId &&
-        EncodeUtils.encodeBase64Url(cred.user.id) === EncodeUtils.encodeBase64Url(user.id),
-    );
+    // Find all credentials for this user and RP, and update them atomically
+    await repository.transaction(async (txRepo) => {
+      const allCredentials = await txRepo.loadCredentials();
+      const userCredentials = allCredentials.filter(
+        (cred) =>
+          cred.publicKeyCredentialSource.rpId.value === rpId &&
+          EncodeUtils.encodeBase64Url(cred.user.id) === EncodeUtils.encodeBase64Url(user.id),
+      );
 
-    if (userCredentials.length === 0) {
-      throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NO_CREDENTIALS);
-    }
+      if (userCredentials.length === 0) {
+        throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NO_CREDENTIALS);
+      }
 
-    // Update user information for all matching credentials
-    for (const credential of userCredentials) {
-      const updatedCredential: PasskeyDiscoverableCredential = {
-        ...credential,
-        user: {
-          ...user,
-          id: user.id, // Keep the same ID
-        },
-      };
+      // Update user information for all matching credentials
+      for (const credential of userCredentials) {
+        const updatedCredential: PasskeyDiscoverableCredential = {
+          ...credential,
+          user: {
+            ...user,
+            id: user.id, // Keep the same ID
+          },
+        };
 
-      repository.deleteCredential(credential);
-      repository.saveCredential(updatedCredential);
-    }
+        await txRepo.deleteCredential(credential);
+        await txRepo.saveCredential(updatedCredential);
+      }
+    });
 
     return {};
   }
 
-  private authenticatorDeleteCredential(
+  private async authenticatorDeleteCredential(
     request: AuthenticatorCredentialManagementRequest,
-  ): AuthenticatorCredentialManagementResponse {
+  ): Promise<AuthenticatorCredentialManagementResponse> {
     const repository = this.params.credentialsRepository;
     if (!repository) {
       throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NOT_ALLOWED);
@@ -277,21 +279,25 @@ export class AuthenticatorEmulator {
     }
 
     const credentialId = request.subCommandParams.credentialId;
-    const credentials = repository.loadCredentials();
-    const credential = credentials.find(
-      (cred) =>
-        EncodeUtils.encodeBase64Url(cred.publicKeyCredentialSource.id) === EncodeUtils.encodeBase64Url(credentialId),
-    );
 
-    if (!credential) {
-      throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NO_CREDENTIALS);
-    }
+    return await repository.transaction(async (txRepo) => {
+      const credentials = await txRepo.loadCredentials();
+      const credential = credentials.find(
+        (cred) =>
+          EncodeUtils.encodeBase64Url(cred.publicKeyCredentialSource.id) === EncodeUtils.encodeBase64Url(credentialId),
+      );
 
-    repository.deleteCredential(credential);
+      if (!credential) {
+        throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NO_CREDENTIALS);
+      }
 
-    return {
-      existingResidentCredentialsCount: repository.loadCredentials().length,
-    };
+      await txRepo.deleteCredential(credential);
+
+      const remainingCredentials = await txRepo.loadCredentials();
+      return {
+        existingResidentCredentialsCount: remainingCredentials.length,
+      };
+    });
   }
 
   /** @see https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#authenticatorGetInfo */
@@ -311,13 +317,15 @@ export class AuthenticatorEmulator {
    * @see https://www.w3.org/TR/webauthn/#sctn-op-make-cred
    * @see https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#authenticatorMakeCredential
    **/
-  public authenticatorMakeCredential(request: AuthenticatorMakeCredentialRequest): AuthenticatorMakeCredentialResponse {
+  public async authenticatorMakeCredential(
+    request: AuthenticatorMakeCredentialRequest,
+  ): Promise<AuthenticatorMakeCredentialResponse> {
     const rpId = new RpId(request.rp.id);
     const repository = this.params.credentialsRepository;
 
     // Exclude list
     if (request.excludeList && request.excludeList.length > 0 && repository) {
-      const existingCredentials = getCredentials(rpId, request.excludeList, repository);
+      const existingCredentials = await getCredentials(rpId, request.excludeList, repository);
       if (existingCredentials.length > 0) {
         throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_CREDENTIAL_EXCLUDED);
       }
@@ -347,7 +355,7 @@ export class AuthenticatorEmulator {
         ...credential,
         user: request.user,
       };
-      saveCredential(discoverableCredential, repository);
+      await saveCredential(discoverableCredential, repository);
     }
 
     return {
@@ -361,14 +369,16 @@ export class AuthenticatorEmulator {
    * @see https://www.w3.org/TR/webauthn/#sctn-op-get-assertion
    * @see https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#authenticatorGetAssertion
    **/
-  public authenticatorGetAssertion(request: AuthenticatorGetAssertionRequest): AuthenticatorGetAssertionResponse {
+  public async authenticatorGetAssertion(
+    request: AuthenticatorGetAssertionRequest,
+  ): Promise<AuthenticatorGetAssertionResponse> {
     const rpId = new RpId(request.rpId);
     const repository = this.params.credentialsRepository;
     const allowList = request.allowList ?? [];
 
     // Allow list
     const credentials = repository
-      ? getCredentials(rpId, allowList, repository)
+      ? await getCredentials(rpId, allowList, repository)
       : getCredentialsStateless(rpId, allowList, AuthenticatorEmulator.ENCRYPT_KEY);
     if (credentials.length === 0) throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NO_CREDENTIALS);
     const credential = credentials[credentials.length - 1];
@@ -377,29 +387,64 @@ export class AuthenticatorEmulator {
     const interactionResponse = this.params.userGetAssertionInteraction(credential.user, request.options);
     if (!interactionResponse) throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED);
 
-    // Get assertion
-    const newSignCount = !repository ? 0 : credential.authenticatorData.signCount + this.params.signCounterIncrement;
+    // Get assertion and update sign count atomically
+    if (repository && credential.user) {
+      return await repository.transaction(async (txRepo) => {
+        // Read the latest credential state within the transaction
+        const currentCredentials = await txRepo.loadCredentials();
+        const currentCredential = currentCredentials.find(
+          (c) =>
+            c.publicKeyCredentialSource.rpId.value === credential.publicKeyCredentialSource.rpId.value &&
+            EncodeUtils.encodeBase64Url(c.user.id) === EncodeUtils.encodeBase64Url(credential.user!.id),
+        );
+
+        if (!currentCredential) {
+          throw new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP2_ERR_NO_CREDENTIALS);
+        }
+
+        // Calculate new sign count based on current value
+        const newSignCount = currentCredential.authenticatorData.signCount + this.params.signCounterIncrement;
+
+        // Get assertion with new sign count
+        const { authData, signature } = getAssertion(
+          rpId.hash,
+          request.clientDataHash,
+          newSignCount,
+          currentCredential.publicKeyCredentialSource,
+          interactionResponse,
+          false,
+        );
+
+        // Update sign count
+        const updatedCredential: PasskeyDiscoverableCredential = {
+          ...currentCredential,
+          authenticatorData: {
+            ...currentCredential.authenticatorData,
+            signCount: newSignCount,
+          },
+        };
+        await saveCredential(updatedCredential, txRepo);
+
+        return {
+          credential: request.allowList?.length === 1 ? undefined : credential.publicKeyCredentialDescriptor,
+          authData,
+          signature,
+          user: credential.user,
+          numberOfCredentials: credentials.length,
+        };
+      });
+    }
+
+    // Stateless mode
+    const newSignCount = 0;
     const { authData, signature } = getAssertion(
       rpId.hash,
       request.clientDataHash,
       newSignCount,
       credential.publicKeyCredentialSource,
       interactionResponse,
-      !repository,
+      true,
     );
-
-    // Update sign count
-    if (repository && credential.user) {
-      const updatedCredential: PasskeyDiscoverableCredential = {
-        ...credential,
-        authenticatorData: {
-          ...credential.authenticatorData,
-          signCount: newSignCount,
-        },
-        user: credential.user,
-      };
-      saveCredential(updatedCredential, repository);
-    }
 
     return {
       credential: request.allowList?.length === 1 ? undefined : credential.publicKeyCredentialDescriptor,
@@ -446,13 +491,13 @@ function getCredentialsStateless(
   });
 }
 
-function getCredentials(
+async function getCredentials(
   rpId: RpId,
   credentialsFilter: PublicKeyCredentialDescriptor[],
   repository: PasskeysCredentialsRepository,
-): PasskeyDiscoverableCredential[] {
+): Promise<PasskeyDiscoverableCredential[]> {
   const allowIds = new Set(credentialsFilter.map((descriptor) => EncodeUtils.encodeBase64Url(descriptor.id)));
-  const credentials = repository.loadCredentials();
+  const credentials = await repository.loadCredentials();
   return credentials.filter((credential) => {
     if (rpId.value !== credential.publicKeyCredentialSource.rpId.value) return false;
     if (credentialsFilter.length > 0) {
@@ -463,16 +508,19 @@ function getCredentials(
   });
 }
 
-function saveCredential(credential: PasskeyDiscoverableCredential, repository: PasskeysCredentialsRepository): void {
-  const credentials = repository.loadCredentials();
+async function saveCredential(
+  credential: PasskeyDiscoverableCredential,
+  repository: PasskeysCredentialsRepository,
+): Promise<void> {
+  const credentials = await repository.loadCredentials();
   const index = credentials.findIndex((c) => {
     if (c.publicKeyCredentialSource.rpId.value !== credential.publicKeyCredentialSource.rpId.value) return false;
     return EncodeUtils.encodeBase64Url(c.user.id) === EncodeUtils.encodeBase64Url(credential.user.id);
   });
   if (index >= 0) {
-    repository.deleteCredential(credentials[index]);
+    await repository.deleteCredential(credentials[index]);
   }
-  repository.saveCredential(credential);
+  await repository.saveCredential(credential);
 }
 
 function getAssertion(

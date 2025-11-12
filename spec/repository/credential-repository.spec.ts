@@ -44,14 +44,14 @@ describe("Credential Repository Test", () => {
   test("Memory Repository Test", async () => {
     const deserialized = deserializeCredential(JSON.stringify(testCredentialJSON));
     const repository = new PasskeysCredentialsMemoryRepository();
-    repository.saveCredential(deserialized);
-    const loaded = repository.loadCredentials();
+    await repository.saveCredential(deserialized);
+    const loaded = await repository.loadCredentials();
 
     expect(loaded[0]).toEqual(deserialized);
     expect(loaded.length).toEqual(1);
 
-    repository.deleteCredential(deserialized);
-    const reLoaded = repository.loadCredentials();
+    await repository.deleteCredential(deserialized);
+    const reLoaded = await repository.loadCredentials();
     expect(reLoaded.length).toEqual(0);
   });
 
@@ -63,20 +63,20 @@ describe("Credential Repository Test", () => {
       fs.rmSync(TEST_CREDENTIALS_DIR, { recursive: true, force: true });
       const repository = new PasskeysCredentialsFileRepository(TEST_CREDENTIALS_DIR);
 
-      repository.saveCredential(deserialized);
+      await repository.saveCredential(deserialized);
       await new Promise((resolve) => setTimeout(resolve, FILE_IO_WAIT));
 
-      const loaded = repository.loadCredentials();
+      const loaded = await repository.loadCredentials();
       expect(loaded[0]).toEqual(deserialized);
       expect(loaded.length).toEqual(1);
 
-      repository.deleteCredential(deserialized);
+      await repository.deleteCredential(deserialized);
       await new Promise((resolve) => setTimeout(resolve, FILE_IO_WAIT));
 
       // create dummy file
       fs.writeFileSync(path.join(TEST_CREDENTIALS_DIR, "dummy"), "dummy");
 
-      const reLoaded = repository.loadCredentials();
+      const reLoaded = await repository.loadCredentials();
       expect(reLoaded.length).toEqual(0);
     } finally {
       fs.rmSync(TEST_CREDENTIALS_DIR, { recursive: true, force: true });

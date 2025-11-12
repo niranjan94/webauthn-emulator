@@ -3,6 +3,8 @@ import {
   WebAuthnEmulatorCreate,
   WebAuthnEmulatorGet,
   WebAuthnEmulatorSignalUnknownCredential,
+  WebAuthnEmulatorSignalAllAcceptedCredentials,
+  WebAuthnEmulatorSignalCurrentUserDetails,
 } from "./test-utils/browser-injection";
 import { WebAuthnEmulator } from "./webauthn/webauthn-emulator";
 
@@ -22,5 +24,7 @@ export const BrowserInjection = {
   WebAuthnEmulatorGet,
   WebAuthnEmulatorCreate,
   WebAuthnEmulatorSignalUnknownCredential,
+  WebAuthnEmulatorSignalAllAcceptedCredentials,
+  WebAuthnEmulatorSignalCurrentUserDetails,
   HookWebAuthnApis,
 };
