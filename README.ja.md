@@ -1,6 +1,6 @@
 # NID WebAuthn Emulator
 
-[![CI Status](https://github.com/Nikkei/nid-webauthn-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/Nikkei/nid-webauthn-emulator/actions/workflows/ci.yml)
+[![CI Status](https://github.com/niranjan94/webauthn-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/niranjan94/webauthn-emulator/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [English](README.md) | [日本語](README.ja.md)
@@ -15,7 +15,7 @@
 ## 使用方法
 
 ```bash
-npm install nid-webauthn-emulator
+npm install webauthn-emulator
 ```
 
 基本的な使い方は `WebAuthnEmulator` クラスを作成し、`create` および `get` メソッドを利用することで、WebAuthn API における `navigator.credentials.create` および `navigator.credentials.get` をエミュレーションすることができます。
@@ -23,7 +23,7 @@ npm install nid-webauthn-emulator
 **注意:** すべての WebAuthn エミュレータのメソッドは非同期で Promise を返します。これらのメソッドを呼び出す際は、必ず `await` または `.then()` を使用してください。
 
 ```TypeScript
-import WebAuthnEmulator from "nid-webauthn-emulator";
+import WebAuthnEmulator from "webauthn-emulator";
 
 const emulator = new WebAuthnEmulator();
 const origin = "https://example.com";
@@ -55,7 +55,7 @@ await emulator.getJSON(origin, requestOptionsJSON);
 これらの設定は下記のように `AuthenticatorEmulator` クラスを作成し、`WebAuthnEmulator` クラスに渡すことで、Authenticator の挙動を変更することができます。
 
 ```TypeScript
-import WebAuthnEmulator, { AuthenticatorEmulator } from "nid-webauthn-emulator";
+import WebAuthnEmulator, { AuthenticatorEmulator } from "webauthn-emulator";
 
 const authenticator = new AuthenticatorEmulator({
   algorithmIdentifiers: ["ES256"],
@@ -127,7 +127,7 @@ import WebAuthnEmulator, {
   BrowserInjection,
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
-} from "nid-webauthn-emulator";
+} from "webauthn-emulator";
 
 async function startWebAuthnEmulator(page: Page, origin: string, debug = false, relatedOrigins: string[] = []) {
   const emulator = new WebAuthnEmulator();
@@ -253,7 +253,7 @@ export interface PasskeysCredentialsRepository {
 PostgreSQL を使った認証情報リポジトリの実装例：
 
 ```TypeScript
-import { PasskeysCredentialsRepository, PasskeyDiscoverableCredential } from "nid-webauthn-emulator";
+import { PasskeysCredentialsRepository, PasskeyDiscoverableCredential } from "webauthn-emulator";
 import { Pool } from "pg";
 
 class PostgresCredentialsRepository implements PasskeysCredentialsRepository {
@@ -322,7 +322,7 @@ const emulator = new WebAuthnEmulator(authenticator);
 2. **PasskeysCredentialsFileRepository**：ディスク上に JSON ファイルとして認証情報を保存
 
 ```TypeScript
-import { AuthenticatorEmulator, PasskeysCredentialsFileRepository } from "nid-webauthn-emulator";
+import { AuthenticatorEmulator, PasskeysCredentialsFileRepository } from "webauthn-emulator";
 
 // ファイルベースのストレージを使用
 const repository = new PasskeysCredentialsFileRepository("./credentials");
@@ -335,6 +335,4 @@ const authenticator = new AuthenticatorEmulator({
 
 ## ライセンス
 
-MIT License
-
-Copyright (C) 2024 Nikkei Inc.
+このプロジェクトは MIT ライセンスの条件の下でライセンスされています。詳細については LICENSE.md を参照してください。

@@ -1,12 +1,12 @@
-# NID WebAuthn Emulator
+# WebAuthn Emulator
 
-[![CI Status](https://github.com/Nikkei/nid-webauthn-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/Nikkei/nid-webauthn-emulator/actions/workflows/ci.yml)
+[![CI Status](https://github.com/niranjan94/webauthn-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/niranjan94/webauthn-emulator/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Nikkei/nid-webauthn-emulator)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/niranjan94/webauthn-emulator)
 
 [English](README.md) | [日本語](README.ja.md)
 
-`NID WebAuthn Emulator` is a library that provides both a [FIDO2/CTAP Authenticator emulator](src/authenticator/authenticator-emulator.ts) and a [WebAuthn API emulator](src/webauthn/webauthn-emulator.ts) built on top of it. Each component is implemented according to the WebAuthn API and CTAP specifications respectively. This module runs on Node.js and is designed for local integration testing of Passkeys.
+`WebAuthn Emulator` is a library that provides both a [FIDO2/CTAP Authenticator emulator](src/authenticator/authenticator-emulator.ts) and a [WebAuthn API emulator](src/webauthn/webauthn-emulator.ts) built on top of it. Each component is implemented according to the WebAuthn API and CTAP specifications respectively. This module runs on Node.js and is designed for local integration testing of Passkeys.
 
 For detailed specifications of each emulator, please refer to the following:
 
@@ -16,7 +16,7 @@ For detailed specifications of each emulator, please refer to the following:
 ## Usage
 
 ```bash
-npm install nid-webauthn-emulator
+npm install webauthn-emulator
 ```
 
 Basic usage involves creating a `WebAuthnEmulator` class and using the `create` and `get` methods to emulate `navigator.credentials.create` and `navigator.credentials.get` from the WebAuthn API.
@@ -24,7 +24,7 @@ Basic usage involves creating a `WebAuthnEmulator` class and using the `create` 
 **Note:** All WebAuthn emulator methods are asynchronous and return Promises. Make sure to use `await` or `.then()` when calling these methods.
 
 ```TypeScript
-import WebAuthnEmulator from "nid-webauthn-emulator";
+import WebAuthnEmulator from "webauthn-emulator";
 
 const emulator = new WebAuthnEmulator();
 const origin = "https://example.com";
@@ -56,7 +56,7 @@ The `WebAuthnEmulator` class emulates the following FIDO2/CTAP Authenticator by 
 These settings can be changed by creating an `AuthenticatorEmulator` class and passing it to the `WebAuthnEmulator` class to modify the Authenticator behavior as follows:
 
 ```TypeScript
-import WebAuthnEmulator, { AuthenticatorEmulator } from "nid-webauthn-emulator";
+import WebAuthnEmulator, { AuthenticatorEmulator } from "webauthn-emulator";
 
 const authenticator = new AuthenticatorEmulator({
   algorithmIdentifiers: ["ES256"],
@@ -128,7 +128,7 @@ import WebAuthnEmulator, {
   BrowserInjection,
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
-} from "nid-webauthn-emulator";
+} from "webauthn-emulator";
 
 async function startWebAuthnEmulator(page: Page, origin: string, debug = false, relatedOrigins: string[] = []) {
   const emulator = new WebAuthnEmulator();
@@ -254,7 +254,7 @@ With transactions, the emulator ensures:
 Here's an example of implementing a PostgreSQL-backed credential repository:
 
 ```TypeScript
-import { PasskeysCredentialsRepository, PasskeyDiscoverableCredential } from "nid-webauthn-emulator";
+import { PasskeysCredentialsRepository, PasskeyDiscoverableCredential } from "webauthn-emulator";
 import { Pool } from "pg";
 
 class PostgresCredentialsRepository implements PasskeysCredentialsRepository {
@@ -323,7 +323,7 @@ The library provides two built-in repository implementations:
 2. **PasskeysCredentialsFileRepository**: Stores credentials as JSON files on disk
 
 ```TypeScript
-import { AuthenticatorEmulator, PasskeysCredentialsFileRepository } from "nid-webauthn-emulator";
+import { AuthenticatorEmulator, PasskeysCredentialsFileRepository } from "webauthn-emulator";
 
 // Use file-based storage
 const repository = new PasskeysCredentialsFileRepository("./credentials");
@@ -336,6 +336,4 @@ Both built-in repositories implement transaction locking using promise-based que
 
 ## License
 
-MIT License
-
-Copyright (C) 2024 Nikkei Inc.
+This project is licensed under the terms of the MIT license. See LICENSE.md for more info.

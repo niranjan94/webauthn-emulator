@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (C) 2024 Nikkei Inc.
+Copyright for portions of webauthn-emulator are held by Nikkei Inc (2024) as the original Authors of https://github.com/Nikkei/nid-webauthn-emulator. All other copyright for webauthn-emulator are held by Niranjan Rajendran (2025)
+
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
