@@ -43,6 +43,7 @@ export class PasskeysCredentialsMemoryRepository implements PasskeysCredentialsR
       return await fn(this);
     } finally {
       // Release the lock for the next transaction
+      // biome-ignore lint/style/noNonNullAssertion: always defined
       releaseLock!();
     }
   }

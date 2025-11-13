@@ -32,7 +32,8 @@ describe("WebAuthnEmulator Registration Passkeys Test", () => {
     await testServer.getRegistrationVerification(user, credential2);
 
     // Last Credentials only
-    const credentialRecords = (await (await emulator.authenticator.params.credentialsRepository?.loadCredentials())) ?? [];
+    const credentialRecords =
+      (await await emulator.authenticator.params.credentialsRepository?.loadCredentials()) ?? [];
     expect(credentialRecords.length).toBe(1);
     expect(EncodeUtils.encodeBase64Url(credentialRecords[0].publicKeyCredentialSource.id)).toBe(credential2.id);
   });

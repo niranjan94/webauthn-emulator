@@ -1,5 +1,5 @@
-import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import {
@@ -71,6 +71,7 @@ export class PasskeysCredentialsFileRepository implements PasskeysCredentialsRep
       return await fn(this);
     } finally {
       // Release the lock for the next transaction
+      // biome-ignore lint/style/noNonNullAssertion: always defined
       releaseLock!();
     }
   }

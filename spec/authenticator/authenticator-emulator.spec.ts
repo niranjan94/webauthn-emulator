@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, test } from "@jest/globals";
-import { AuthenticatorEmulator } from "../../src";
 import {
   AuthenticationEmulatorError,
   type AuthenticatorCredentialManagementRequest,
   type AuthenticatorCredentialManagementResponse,
+  AuthenticatorEmulator,
   CREDENTIAL_MANAGEMENT_SUBCOMMAND,
   CTAP_COMMAND,
   CTAP_STATUS_CODE,
   type CTAPAuthenticatorRequest,
+  PasskeysCredentialsMemoryRepository,
   packCredentialManagementRequest,
-} from "../../src/authenticator/ctap-model";
+} from "../../src";
 import EncodeUtils from "../../src/libs/encode-utils";
-import { PasskeysCredentialsMemoryRepository } from "../../src/repository/credentials-memory-repository";
 
 describe("Authenticator Emulator Exceptional Test", () => {
   // Success case has been tested in the webauthn-emulator.spec.ts
@@ -302,9 +302,9 @@ describe("Authenticator Credential Management Tests", () => {
       const authenticator = new AuthenticatorEmulator();
       // Build a CTAP request with an unknown subCommand to hit default branch
       const data = EncodeUtils.encodeCbor({ "1": -1 });
-      await expect(async () => await authenticator.command({ command: CTAP_COMMAND.authenticatorCredentialManagement, data })).rejects.toThrow(
-        new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP1_ERR_INVALID_COMMAND),
-      );
+      await expect(
+        async () => await authenticator.command({ command: CTAP_COMMAND.authenticatorCredentialManagement, data }),
+      ).rejects.toThrow(new AuthenticationEmulatorError(CTAP_STATUS_CODE.CTAP1_ERR_INVALID_COMMAND));
     });
 
     test("enumerateCredentialsBegin without repository throws not allowed", async () => {

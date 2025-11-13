@@ -395,6 +395,7 @@ export class AuthenticatorEmulator {
         const currentCredential = currentCredentials.find(
           (c) =>
             c.publicKeyCredentialSource.rpId.value === credential.publicKeyCredentialSource.rpId.value &&
+            // biome-ignore lint/style/noNonNullAssertion: use is not expected to be null
             EncodeUtils.encodeBase64Url(c.user.id) === EncodeUtils.encodeBase64Url(credential.user!.id),
         );
 

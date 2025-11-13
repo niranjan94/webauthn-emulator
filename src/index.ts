@@ -2,9 +2,9 @@ import {
   HookWebAuthnApis,
   WebAuthnEmulatorCreate,
   WebAuthnEmulatorGet,
-  WebAuthnEmulatorSignalUnknownCredential,
   WebAuthnEmulatorSignalAllAcceptedCredentials,
   WebAuthnEmulatorSignalCurrentUserDetails,
+  WebAuthnEmulatorSignalUnknownCredential,
 } from "./test-utils/browser-injection";
 import { WebAuthnEmulator } from "./webauthn/webauthn-emulator";
 
